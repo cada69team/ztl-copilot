@@ -1,0 +1,120 @@
+{
+    "type": "FeatureCollection",
+    "features": [{
+            "type": "Feature",
+            "properties": {
+                "city": "Milano",
+                "name": "Area C",
+                "fine": 100
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[9.17, 45.48], [9.20, 45.48], [9.20, 45.45], [9.17, 45.45], [9.17, 45.48]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Torino",
+                "name": "ZTL Centrale",
+                "fine": 85
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[7.67, 45.07], [7.69, 45.07], [7.69, 45.06], [7.67, 45.06], [7.67, 45.07]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Bergamo",
+                "name": "Città Alta",
+                "fine": 95
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[9.65, 45.71], [9.67, 45.71], [9.67, 45.70], [9.65, 45.70], [9.65, 45.71]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Como",
+                "name": "Città Murata",
+                "fine": 90
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[9.07, 45.81], [9.09, 45.81], [9.09, 45.80], [9.07, 45.80], [9.07, 45.81]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Varese",
+                "name": "Centro",
+                "fine": 85
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[8.82, 45.82], [8.83, 45.82], [8.83, 45.81], [8.82, 45.81], [8.82, 45.82]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Cortina d'Ampezzo",
+                "name": "Olympic Core (Zone 1/2)",
+                "fine": 150,
+                "note": "Covers SR48 and SS51 approaches"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[12.110, 46.550], [12.160, 46.550], [12.160, 46.520], [12.110, 46.520], [12.110, 46.550]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Bormio",
+                "name": "Stelvio Sector (Zone 1)",
+                "fine": 120,
+                "note": "Active during Alpine Skiing events"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[10.360, 46.480], [10.390, 46.480], [10.390, 46.455], [10.360, 46.455], [10.360, 46.480]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Livigno",
+                "name": "Mottolino/Carosello (Zone 1)",
+                "fine": 130,
+                "note": "Full valley restriction Feb 4-22"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[10.110, 46.560], [10.160, 46.560], [10.160, 46.520], [10.110, 46.520], [10.110, 46.560]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Antholz (Anterselva)",
+                "name": "Biathlon Core (Zone 1)",
+                "fine": 110,
+                "note": "Restricted approach via SP44"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[12.090, 46.880], [12.120, 46.880], [12.120, 46.850], [12.090, 46.850], [12.090, 46.880]]]
+            }
+        }, {
+            "type": "Feature",
+            "properties": {
+                "city": "Tesero",
+                "name": "Val di Fiemme (Zone 1)",
+                "fine": 100,
+                "note": "Lago area security perimeter"
+            },
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[[11.500, 46.295], [11.530, 46.295], [11.530, 46.275], [11.500, 46.275], [11.500, 46.295]]]
+            }
+        }
+    ]
+}
