@@ -22,9 +22,10 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound }: {
+function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   onAlert: (active: boolean, message?: string) => void;
   alertSound: AlertSound;
+  onNearestZone: (zone: ZoneFeature | null) => void;
 }) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
@@ -63,6 +64,10 @@ function LocationMarker({ onAlert, alertSound }: {
             nearest = zone;
           }
         });
+
+        if (nearest) {
+          onNearestZone(nearest);
+        }
 
         const distInMeters = minDistance * 1000;
 
@@ -121,7 +126,7 @@ function LocationMarker({ onAlert, alertSound }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount]);
+  }, [map, onAlert, siren, alertCount, onNearestZone]);
 
   return position ? <Marker position={position} /> : null;
 }
