@@ -87,6 +87,7 @@ function LocationMarker({ onAlert, alertSound }: {
 
           const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${3 - newCount} free alerts remaining today`;
           onAlert(true, alertMessage);
+
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -500,6 +501,7 @@ export default function ZtlMap() {
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
+          // CRITICAL FIX: Swap [lon, lat] → [lat, lon] for React-Leaflet
           const positions = f.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
 
           return (
