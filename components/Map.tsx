@@ -100,8 +100,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const nearestCity = nearest.properties.city;
-          const nearestName = nearest.properties.name;
+          const nearestCity = nearest?.properties?.city;
+          const nearestName = nearest?.properties?.name;
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
 
