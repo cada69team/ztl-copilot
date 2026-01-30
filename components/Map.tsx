@@ -21,6 +21,29 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
+// HARDCODED TEST DATA (Milan center)
+const TEST_ZONES: any = {
+  type: "FeatureCollection",
+  features: [{
+    type: "Feature",
+    properties: {
+      city: "Milano",
+      name: "TEST ZONE",
+      fine: 85
+    },
+    geometry: {
+      type: "Polygon",
+      coordinates: [[
+        [9.18, 45.47],
+        [9.19, 45.47],
+        [9.19, 45.46],
+        [9.18, 45.46],
+        [9.18, 45.47]
+      ]]
+    }
+  }]
+};
+
 function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
   onAlert: (active: boolean, message?: string) => void;
   alertSound: AlertSound;
@@ -104,8 +127,9 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const nearestZone = nearest as any; const nearestCity = nearestZone.properties.city;
-          const nearestName = nearest.properties.name;
+          const nearestZone = nearest as any;
+          const nearestCity = nearestZone.properties.city;
+          const nearestName = nearestZone.properties.name;
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
 
@@ -179,22 +203,26 @@ export default function ZtlMap() {
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
+  const [usingTestData, setUsingTestData] = useState(false);
+
   const handleNearestZone = (zone: ZoneFeature | null) => {
     setNearestZone(zone);
   };
 
   useEffect(() => {
     console.log("🚨 ZtlMap component mounted");
-    console.log("🚨 Starting zones load...");
+    console.log("🚨 Loading zones from /ztl-zones.json...");
 
+    // Load zones data from JSON file
     fetch('/ztl-zones.json')
       .then(res => {
-        console.log("✅ Zones file loaded from network:", res.status);
+        console.log("✅ Fetch response status:", res.status);
         return res.json();
       })
       .then(data => {
         console.log("✅ Zones data parsed:", data);
         console.log("✅ Zones count:", data.features?.length || 0);
+
         setZtlZones(data);
         setZonesCount(data.features?.length || 0);
         setZonesLoaded(true);
@@ -202,10 +230,23 @@ export default function ZtlMap() {
       })
       .catch(err => {
         console.error("❌ Zones load error:", err);
-        setZonesError(`Failed to load zones: ${err.message}`);
+        console.error("❌ Error message:", err.message);
+
+        const errorMsg = `Failed to load zones: ${err.message || 'Unknown error'}`;
+
+        setZonesError(errorMsg);
         setZonesLoaded(false);
       });
   }, []);
+
+  const handleUseTestData = () => {
+    console.log("🧪 Using test data instead of zones file");
+    setZtlZones(TEST_ZONES);
+    setZonesCount(TEST_ZONES.features.length);
+    setZonesLoaded(true);
+    setZonesError(null);
+    setUsingTestData(true);
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -309,22 +350,36 @@ export default function ZtlMap() {
   return (
     <div className="h-screen w-full bg-white">
       {/* Console Logs Display */}
-      <div className="fixed bottom-4 left-4 p-3 bg-black/90 text-white rounded-lg z-[3000] text-xs font-mono max-w-sm">
+      <div className="fixed bottom-4 left-4 p-3 bg-black/90 text-white rounded-lg z-[3000] text-xs font-mono max-w-md">
         <div>🔷 Console Logs:</div>
-        {zonesLoaded && <div>✅ Zones loaded: {zonesCount} zones</div>}
-        {zonesError && <div>❌ Zones error: {zonesError}</div>}
+        {zonesLoaded && <div>✅ Zones loaded: {zonesCount} zones {usingTestData && '(TEST DATA)'}</div>}
+        {zonesError && <div className="text-red-300">❌ Zones error: {zonesError}</div>}
         {mapReady && <div>✅ Map ready</div>}
       </div>
 
-      {/* Zones Error Alert */}
+      {/* Zones Error Alert with Test Data Button */}
       {zonesError && (
-        <div className="fixed top-24 left-4 right-4 z-[2000]">
+        <div className="fixed top-20 left-4 right-4 z-[2000]">
           <div className="bg-red-50 border border-red-300 p-4 rounded-lg shadow-lg max-w-md">
             <h3 className="text-lg font-bold text-red-600 mb-2">Zones Load Error</h3>
-            <p className="text-gray-700">{zonesError}</p>
-            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-              Reload Page
-            </button>
+            <p className="text-gray-700 mb-3">{zonesError}</p>
+            <div className="bg-gray-50 p-3 rounded-lg mb-3">
+              <p className="text-sm text-gray-600 mb-2">Possible fixes:</p>
+              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                <li>Zone file not in public directory</li>
+                <li>Wrong file path: /ztl-zones.json</li>
+                <li>CORS issue preventing fetch</li>
+                <li>File not deployed to Vercel</li>
+              </ul>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => window.location.reload()} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                Reload Page
+              </button>
+              <button onClick={handleUseTestData} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Use Test Data
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -531,7 +586,7 @@ export default function ZtlMap() {
 
       {/* Loading State */}
       {!mapReady && !zonesLoaded && !zonesError && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && !showInstallInstructions && (
-        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1994]">
+        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1000]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading map and zones...</p>
@@ -575,19 +630,12 @@ export default function ZtlMap() {
               />
             );
           })}
-          {/* TEST POLYGON - Always renders blue box */}
-          <Polygon
-            positions={[[9.18, 45.47], [9.19, 45.47], [9.19, 45.46], [9.18, 45.46]]}
-            color="blue"
-            fillColor="rgba(0, 0, 255, 0.5)"
-            fillOpacity={0.5}
-          />
         </MapContainer>
       )}
 
       {/* Alert Banner */}
       {isAlert && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1993] animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1000] animate-slide-up">
           <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
           <p className="text-sm mt-1">Tap to dismiss</p>
         </div>
@@ -668,7 +716,7 @@ export default function ZtlMap() {
       )}
 
       {/* Header with Diagnostic Status */}
-      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1992]">
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
