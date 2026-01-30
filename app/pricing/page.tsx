@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 
-import type { Tier } from '@/app/api/checkout/route';
-
 export default function Pricing() {
-  const [tier, setTier] = useState<Tier>('premium');
+  const [tier, setTier] = useState<'basic' | 'premium' | 'lifetime'>('premium');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -48,7 +46,7 @@ export default function Pricing() {
     }
   };
 
-  const handleCheckout = async (selectedTier: Tier) => {
+  const handleCheckout = async (selectedTier: 'basic' | 'premium' | 'lifetime') => {
     setIsProcessing(true);
     setError(null);
 
@@ -67,12 +65,12 @@ export default function Pricing() {
         setError(data.error);
       } else if (data.sessionId) {
         const stripe = (window as any).Stripe;
-        const { error: redirectError } = await stripe.redirectToCheckout({
+        const { error } = await stripe.redirectToCheckout({
           sessionId: data.sessionId,
         });
 
-        if (redirectError) {
-          setError(redirectError.message || 'Failed to redirect to Stripe');
+        if (error) {
+          setError(error.message || 'Failed to redirect to Stripe');
         }
       }
     } catch (err: any) {
@@ -85,7 +83,6 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-12 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Plan</h1>
           <p className="text-xl text-gray-600">
@@ -108,9 +105,7 @@ export default function Pricing() {
           </div>
         )}
 
-        {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-6">
-          {/* Basic Plan */}
           <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Basic</h2>
@@ -133,9 +128,7 @@ export default function Pricing() {
                 Current Plan
               </button>
             </div>
-          </div>
 
-          {/* Premium Plan */}
           <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'premium' ? 'border-blue-500 ring-4 ring-blue-500 ring-opacity-20' : 'border-gray-100'}`}>
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Premium</h2>
@@ -165,9 +158,7 @@ export default function Pricing() {
                 {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
               </button>
             </div>
-          </div>
 
-          {/* Lifetime Plan */}
           <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'lifetime' ? 'border-purple-500 ring-4 ring-purple-500 ring-opacity-20' : 'border-gray-100'}`}>
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Lifetime</h2>
@@ -200,10 +191,8 @@ export default function Pricing() {
                 {isProcessing ? 'Processing...' : 'Get Lifetime'}
               </button>
             </div>
-          </div>
         </div>
 
-        {/* Features Comparison */}
         <div className="mt-8 p-6 bg-white rounded-2xl shadow-lg">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">What You Get</h2>
           <div className="grid md:grid-cols-2 gap-6">
@@ -230,7 +219,6 @@ export default function Pricing() {
           </div>
         </div>
 
-        {/* Guarantee */}
         <div className="mt-6 p-6 bg-gray-50 rounded-2xl">
           <div className="flex items-center gap-3">
             <span className="text-3xl">🛡️</span>
@@ -241,7 +229,6 @@ export default function Pricing() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-12 text-center text-gray-500 text-sm">
           <p>Secure payment powered by <span className="font-bold text-blue-600">Stripe</span></p>
           <p className="mt-2">
