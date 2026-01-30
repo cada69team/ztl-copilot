@@ -81,7 +81,12 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
+          const city = zone.properties.city;
+          const name = zone.properties.name;
+          const fine = zone.properties.fine;
+          const remaining = 3 - newCount;
+
+          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
           onAlert(true, alertMessage);
           if (siren) {
             siren.currentTime = 0;
@@ -91,7 +96,11 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${nearest?.properties?.city || "Unknown"} - ${nearest?.properties?.name || "Unknown"}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+          const city = nearest.properties.city;
+          const name = nearest.properties.name;
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${city} - ${name}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
           onAlert(true, alertMessage);
 
           if (alertSound === "siren" && siren) {
@@ -102,7 +111,9 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
           onAlert(true, alertMessage);
 
           if (siren) {
