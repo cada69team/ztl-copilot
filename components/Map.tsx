@@ -86,7 +86,15 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
+          const city = zone.properties.city;
+          const name = zone.properties.name;
+          const fine = zone.properties.fine;
+          const remaining = 3 - newCount;
+
+          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
+
+          onAlert(true, alertMessage);
+
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -95,7 +103,14 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          const nearestCity = nearest.properties.city;
+          const nearestName = nearest.properties.name;
+          const distStr = distInMeters.toFixed(0);
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
+
+          onAlert(true, alertMessage);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
@@ -105,7 +120,12 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
+          const distStr = distInMeters.toFixed(0);
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
+
+          onAlert(true, alertMessage);
 
           if (siren) {
             siren.currentTime = 0;
@@ -162,19 +182,12 @@ export default function ZtlMap() {
   };
 
   useEffect(() => {
-    // Load zones data from JSON file
-    fetch('/ztl-zones.json')
-      .then(res => res.json())
-      .then(data => {
-        setZtlZones(data);
-        setZonesCount(data.features?.length || 0);
-        setZonesLoaded(true);
-      })
-      .catch(err => {
-        console.error("Failed to load zones:", err);
-        setZonesLoaded(false);
-      });
-  }, []);
+    if (ztlZones) {
+      const count = ztlZones.features?.length || 0;
+      setZonesCount(count);
+      setZonesLoaded(count > 0);
+    }
+  }, [ztlZones]);
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -623,7 +636,7 @@ export default function ZtlMap() {
                   {zonesLoaded ? `✓ ${zonesCount} zones` : `✗ 0 zones`}
                 </span>
                 <span className={`px-2 py-1 rounded ${mapReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {mapReady ? 'Map ready' : 'Loading'}
+                  {mapReady ? 'Map ready' : 'Map loading'}
                 </span>
               </div>
               <p className="text-xs text-gray-600 hidden sm:block">
