@@ -2,6 +2,9 @@
 
 This folder is home. Treat it that way.
 
+---
+*Workspace merged with Next.js project on 2026-01-30*
+
 ## First Run
 
 If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out who you are, then delete it. You won't need it again.

@@ -1,3 +1,4 @@
+// ZTL-Copilot - Olympic Shield 2026 Project
 import Image from "next/image";
 
 export default function Home() {
