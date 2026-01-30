@@ -90,7 +90,8 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          const nearestZone = nearest as ZoneFeature;
+          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
