@@ -4,13 +4,6 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
-import zonesJson from "/ztl-zones.json";
-
-const ztlZones = zonesJson as any;
-
-console.log("🚨 Map.tsx FILE LOADED");
-console.log("🚨 Zones data:", ztlZones);
-console.log("🚨 Zones count:", ztlZones.features?.length || 0);
 
 interface ZoneFeature {
   type: string;
@@ -163,15 +156,26 @@ export default function ZtlMap() {
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
+  const [ztlZones, setZtlZones] = useState<any>(null);
+
+  useEffect(() => {
+    // Load zones data from JSON file
+    fetch('/ztl-zones.json')
+      .then(res => res.json())
+      .then(data => {
+        setZtlZones(data);
+        setZonesCount(data.features?.length || 0);
+        setZonesLoaded(true);
+      })
+      .catch(err => {
+        console.error("Failed to load zones:", err);
+        setZonesLoaded(false);
+      });
+  }, []);
+
   const handleNearestZone = (zone: ZoneFeature | null) => {
     setNearestZone(zone);
   };
-
-  useEffect(() => {
-    const count = ztlZones.features?.length || 0;
-    setZonesCount(count);
-    setZonesLoaded(count > 0);
-  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -474,45 +478,47 @@ export default function ZtlMap() {
       )}
 
       {/* Loading State */}
-      {!mapReady && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && !showInstallInstructions && (
+      {!mapReady && !zonesLoaded && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && !showInstallInstructions && (
         <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1000]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading map...</p>
+            <p className="text-gray-600">Loading zones...</p>
           </div>
         </div>
       )}
 
       {/* Map */}
-      <MapContainer
-        center={[45.4642, 9.1900]}
-        zoom={13}
-        className="h-[80%] w-full"
-        style={{ height: "80vh", width: "100%" }}
-        whenReady={handleMapReady}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        />
-        {ztlZones.features.map((f: ZoneFeature, i: number) => {
-          const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
-          const color = isNearest ? "red" : "orange";
-          const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
-          const fillOpacity = isNearest ? 0.5 : 0.2;
+      {ztlZones && (
+        <MapContainer
+          center={[45.4642, 9.1900]}
+          zoom={13}
+          className="h-[80%] w-full"
+          style={{ height: "80vh", width: "100%" }}
+          whenReady={handleMapReady}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          />
+          {ztlZones.features.map((f: ZoneFeature, i: number) => {
+            const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
+            const color = isNearest ? "red" : "orange";
+            const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
+            const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          return (
-            <Polygon
-              key={i}
-              positions={f.geometry.coordinates}
-              eventHandlers={{ click: () => handleZoneClick(f) }}
-              color={color}
-              fillColor={fillColor}
-              fillOpacity={fillOpacity}
-            />
-          );
-        })}
-      </MapContainer>
+            return (
+              <Polygon
+                key={i}
+                positions={f.geometry.coordinates}
+                eventHandlers={{ click: () => handleZoneClick(f) }}
+                color={color}
+                fillColor={fillColor}
+                fillOpacity={fillOpacity}
+              />
+            );
+          })}
+        </MapContainer>
+      )}
 
       {/* Alert Banner */}
       {isAlert && (
@@ -612,9 +618,12 @@ export default function ZtlMap() {
                   {zonesLoaded ? `✓ ${zonesCount} zones` : `✗ 0 zones`}
                 </span>
                 <span className={`px-2 py-1 rounded ${mapReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {mapReady ? 'Map ready' : 'Map loading'}
+                  {mapReady ? 'Map ready' : 'Loading'}
                 </span>
               </div>
+              <p className="text-xs text-gray-600 hidden sm:block">
+                {3 - alertCount} free alerts today
+              </p>
             </div>
           </div>
 
