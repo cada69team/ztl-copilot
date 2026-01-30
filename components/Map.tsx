@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
-import ztlZones from "../public/ztl-zones.json";
 
 interface ZoneFeature {
   type: string;
@@ -132,7 +131,6 @@ export default function ZtlMap() {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
-  const [distanceToZone, setDistanceToZone] = useState<number | null>(null);
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
