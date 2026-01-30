@@ -30,7 +30,6 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
-  const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
@@ -87,18 +86,17 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCount < 3 && nearestZone) {
+        } else if (approaching200m && alertCount < 3 && nearest) {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+
           if (alertSound === "siren") {
             if (siren) {
               siren.currentTime = 0;
@@ -109,8 +107,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
+
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -129,14 +127,14 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, nearestZone, alertSound, onNearestZone]);
+  }, [map, onAlert, siren, alertCount, onNearestZone]);
 
   return position ? <Marker position={position} /> : null;
 }
 
 export default function ZtlMap() {
   const [isAlert, setIsAlert] = useState(false);
-  const [alertMessage, setalertMessage] = useState("");
+  const [alertMessage, setAlertMessage] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
@@ -172,17 +170,40 @@ export default function ZtlMap() {
   };
 
   useEffect(() => {
-    console.log("🔴 nearestZone state changed:", nearestZone);
-    console.log("🔴 Number of zones:", ztlZones.features.length);
-    if (nearestZone) {
-      console.log("🔴 Nearest zone name:", nearestZone.properties.name);
+    const saved = localStorage.getItem('ztl-alert-count');
+    const today = new Date().toDateString();
+    const savedDate = localStorage.getItem('ztl-alert-date');
+
+    if (savedDate !== today) {
+      localStorage.setItem('ztl-alert-date', today);
+      localStorage.setItem('ztl-alert-count', '0');
+      setAlertCount(0);
+    } else if (saved) {
+      setAlertCount(parseInt(saved, 10));
     }
-  }, [nearestZone]);
+  }, []);
+
+  useEffect(() => {
+    setIsInstalled(window.matchMedia('(display-mode: standalone)').matches);
+  }, []);
+
+  useEffect(() => {
+    const hasDismissed = localStorage.getItem('pwa-install-dismissed');
+    const dismissedDate = localStorage.getItem('pwa-install-dismissed-date');
+    const today = new Date().toDateString();
+    const wasDismissedRecently = hasDismissed && dismissedDate === today;
+
+    if (!isInstalled && !wasDismissedRecently && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings) {
+      const timer = setTimeout(() => {
+        setShowDelayedPrompt(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [isInstalled, showInstallPrompt, showDelayedPrompt, showSoundSettings]);
 
   const handleAlert = (active: boolean, message = "") => {
-    console.log("📢 Alert:", active, message);
     setIsAlert(active);
-    setalertMessage(message);
+    setAlertMessage(message);
 
     if (alertCount >= 3 && !showUpgradePrompt) {
       setShowUpgradePrompt(true);
