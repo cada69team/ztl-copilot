@@ -3,10 +3,28 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
+import { isZoneActive } from "@/hooks/useZtlStatus";
+// @ts-ignore
+import ztlZones from "../public/ztl-zones.json";
 
-function LocationMarker({ zones, onAlert }) {
+interface LocationMarkerProps {
+  onAlert: (active: boolean, message?: string) => void;
+}
+
+function LocationMarker({ onAlert }: LocationMarkerProps) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
+  const [siren] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    // Preload siren
+    const audio = new Audio("/siren.mp3");
+    audio.volume = 0.5;
+    return () => {
+      audio.pause();
+      audio.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const watcher = navigator.geolocation.watchPosition(
@@ -17,47 +35,48 @@ function LocationMarker({ zones, onAlert }) {
 
         // Geofencing Logic
         const pt = turf.point([longitude, latitude]);
-		
-		// scheduler
-		/*
-		const activeViolations = zones.features.filter((zone: any) => {
-			const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
-			const isActiveNow = isZoneActive(zone.properties.name);
-			return isInside && isActiveNow;
-		});
 
-		if (activeViolations.length > 0) {
-		  const zone = activeViolations[0].properties;
-		  onAlert(true, `WARNING: Active ZTL in ${zone.city}. Potential Fine: €${zone.fine}`);
-		} else {
-		  onAlert(false);
-		}*/
+        // Check for approaching zone (50m warning)
+        const userBuffer = turf.buffer(pt, 0.05, { units: 'kilometers' });
+        const isApproaching = ztlZones.features.some((zone: any) => {
+          const polygon = turf.polygon(zone.geometry.coordinates);
+          // @ts-ignore
+          return turf.booleanIntersects(userBuffer, polygon);
+        });
 
+        // Check if inside any active zone
+        const activeViolations = ztlZones.features.filter((zone: any) => {
+          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
+          const isActiveNow = isZoneActive(zone.properties.name);
+          return isInside && isActiveNow;
+        });
 
-		const userBuffer = turf.buffer(userPt, 0.05, { units: 'kilometers' }); // 50-meter warning zone
-		const isApproaching = zones.features.some((zone: any) => 
-		  turf.booleanIntersects(userBuffer, turf.polygon(zone.geometry.coordinates))
-		);
-		if (isApproaching) {
-		  onAlert(true); // Trigger "Warning: Approaching Olympic Restricted Zone"
-		}//else onAlert(false);
-        const isInside = zones.features.some((zone: any) => 
-          turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates))
-        );        
-        if (isInside) onAlert(true);
-        else onAlert(false);
+        if (activeViolations.length > 0) {
+          const zone = activeViolations[0].properties;
+          onAlert(true, `⚠️ ACTIVE ZTL in ${zone.city}: ${zone.name}\nPotential Fine: €${zone.fine}`);
+          // Play siren on first alert
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
+        } else if (isApproaching) {
+          onAlert(true, "⚠️ Approaching Olympic Restricted Zone - Check ahead!");
+        } else {
+          onAlert(false);
+        }
       },
       null,
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, zones, onAlert]);
+  }, [map, onAlert, siren]);
 
   return position ? <Marker position={position} /> : null;
 }
 
-export default function ZtlMap({ zones }) {
+export default function ZtlMap() {
   const [isAlert, setIsAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
 
   // Keep screen on while driving
   useEffect(() => {
@@ -66,21 +85,38 @@ export default function ZtlMap({ zones }) {
     }
   }, []);
 
+  const handleAlert = (active: boolean, message = "") => {
+    setIsAlert(active);
+    setAlertMessage(message);
+  };
+
   return (
     <div className={`h-screen w-full transition-colors duration-500 ${isAlert ? "bg-red-600 animate-pulse" : "bg-white"}`}>
       <MapContainer center={[45.4642, 9.1900]} zoom={13} className="h-[80%] w-full">
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {zones.features.map((f: any, i: number) => (
-          <Polygon key={i} positions={f.geometry.coordinates[0].map((c: any) => [c[1], c[0]])} color="red" />
+        {ztlZones.features.map((f: any, i: number) => (
+          <Polygon
+            key={i}
+            positions={f.geometry.coordinates[0].map((c: any) => [c[1], c[0]])}
+            color="red"
+            fillColor="rgba(255, 0, 0, 0.2)"
+            fillOpacity={0.3}
+          />
         ))}
-        <LocationMarker zones={zones} onAlert={setIsAlert} />
+        <LocationMarker onAlert={handleAlert} />
       </MapContainer>
-      
+
       {isAlert && (
-        <div className="p-4 text-center text-white font-bold text-xl">
-          ⚠️ ACTIVE ZTL ZONE! AVOID OR PAY FINE.
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1000]">
+          <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
+          <p className="text-sm mt-1">Tap to dismiss</p>
         </div>
       )}
+
+      <div className="fixed top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-lg p-3 shadow-lg z-[1000]">
+        <h2 className="font-bold text-sm text-gray-900">🏔️ Olympic Shield 2026</h2>
+        <p className="text-xs text-gray-600">ZTL alerts for Milan & Olympic venues</p>
+      </div>
     </div>
   );
 }
