@@ -8,22 +8,14 @@ import ztlZones from "../public/ztl-zones.json";
 
 interface ZoneFeature {
   type: string;
-  properties: {
-    city: string;
-    name: string;
-    fine: number;
-    note?: string;
-  };
-  geometry: {
-    type: string;
-    coordinates: any;
-  };
+  properties: any;
+  geometry: any;
 }
 
 function LocationMarker({ onAlert }: { onAlert: (active: boolean, message?: string) => void }) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
-  const [siren] = useState<HTMLAudioElement | null>(null);
+  const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
 
@@ -82,21 +74,33 @@ function LocationMarker({ onAlert }: { onAlert: (active: boolean, message?: stri
           localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
-          onAlert(true, `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
+          onAlert(true, `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCount < 3 && nearest) {
+        } else if (approaching200m && alertCount < 3) {
+          const zoneName = (nearest as any)?.properties?.name || "Unknown";
+          const cityName = (nearest as any)?.properties?.city || "Unknown";
           const newCount = alertCount + 1;
           localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
-          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+
+          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${cityName} - ${zoneName}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
         } else if (approaching100m && alertCount < 3) {
           const newCount = alertCount + 1;
           localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
-          onAlert(true, `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
+
+          onAlert(true, `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
         } else {
           onAlert(false);
         }
@@ -127,7 +131,6 @@ export default function ZtlMap() {
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
-  // PWA Install Prompt
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showDelayedPrompt, setShowDelayedPrompt] = useState(false);
@@ -222,7 +225,7 @@ export default function ZtlMap() {
 
   return (
     <div className="h-screen w-full bg-white">
-      {/* PWA Install Prompt - Bottom Sheet */}
+      {/* PWA Install Prompt - Bottom Sheet (Mobile-First) */}
       {showInstallPrompt && (
         <div className="fixed inset-x-0 bottom-0 z-[2000] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4">
@@ -232,7 +235,7 @@ export default function ZtlMap() {
                   <img src="/icons/icon-192.png" alt="App" className="w-12 h-12" />
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">Install App</h3>
-                    <p className="text-sm text-gray-600">Get full-screen ZTL alerts</p>
+                    <p className="text-sm text-gray-600">Get full-screen ZTL alerts while driving</p>
                   </div>
                 </div>
                 <button onClick={handleDontShowAgain} className="text-gray-400 hover:text-gray-600 text-sm">
@@ -264,7 +267,7 @@ export default function ZtlMap() {
             <div className="flex items-center gap-3 max-w-sm mx-auto">
               <img src="/icons/icon-192.png" alt="App" className="w-8 h-8" />
               <div>
-                <p className="text-sm font-medium text-gray-800">Add to Home Screen?</p>
+                <p className="text-sm font-medium text-gray-800">Add Olympic Shield to Home Screen?</p>
               </div>
               <div className="flex items-center gap-2 ml-auto">
                 <button onClick={handleDismissPrompt} className="text-gray-500 hover:text-gray-700 text-xl">
@@ -293,7 +296,7 @@ export default function ZtlMap() {
       )}
 
       {/* Loading State */}
-      {!mapReady && (
+      {!mapReady && !showInstallPrompt && !showDelayedPrompt && !showUpgradePrompt && !selectedZone && (
         <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1000]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -310,22 +313,25 @@ export default function ZtlMap() {
         style={{ height: "80vh", width: "100%" }}
         whenReady={handleMapReady}
       >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
         {ztlZones.features.map((f: ZoneFeature, i: number) => (
           <Polygon
             key={i}
             positions={f.geometry.coordinates}
             eventHandlers={{ click: () => handleZoneClick(f) }}
-            color={nearestZone && nearestZone.properties.name === f.properties.name ? "red" : "orange"}
-            fillColor={nearestZone && nearestZone.properties.name === f.properties.name ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
-            fillOpacity={nearestZone && nearestZone.properties.name === f.properties.name ? 0.5 : 0.2}
+            color={nearestZone?.properties?.name === f.properties?.name ? "red" : "orange"}
+            fillColor={nearestZone?.properties?.name === f.properties?.name ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
+            fillOpacity={nearestZone?.properties?.name === f.properties?.name ? 0.5 : 0.2}
           />
         ))}
       </MapContainer>
 
       {/* Alert Banner */}
       {isAlert && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1000] transition-colors duration-500">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1000] animate-slide-up">
           <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
           <p className="text-sm mt-1">Tap to dismiss</p>
         </div>
@@ -333,7 +339,7 @@ export default function ZtlMap() {
 
       {/* Distance Indicator */}
       {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && !showUpgradePrompt && !showInstallPrompt && !showDelayedPrompt && (
-        <div className="fixed top-20 left-4 right-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000] max-w-xs transition-colors duration-300">
+        <div className="fixed top-20 left-4 right-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000] max-w-xs animate-slide-up">
           <p className="font-bold text-sm">{nearestZone.properties.city}</p>
           <p className="text-xs">{nearestZone.properties.name}</p>
           <p className="font-semibold text-sm">
@@ -368,25 +374,25 @@ export default function ZtlMap() {
                 </div>
                 <div className="bg-orange-50 p-3 rounded-lg">
                   <p className="text-lg font-bold text-orange-700">Check hours</p>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 mt-1">
                     {selectedZone.properties.name === "Area C" ? "Mon-Fri 07:30-18:30" : "Check local signage"}
                   </p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-3 rounded-lg mt-2">
+              <div className="bg-gray-50 p-3 rounded-lg">
                 <h4 className="font-bold text-gray-900 mb-2">Exceptions?</h4>
                 <ul className="space-y-1 text-sm text-gray-700">
-                  <li>Residents with valid permit</li>
-                  <li>Electric vehicles with charging plates</li>
-                  <li>Emergency vehicles</li>
-                  <li>Public transport (buses, taxis)</li>
-                  <li>Disabled vehicles with valid exemption</li>
+                  <li>• Residents with valid permit</li>
+                  <li>• Electric vehicles with charging plates</li>
+                  <li>• Emergency vehicles</li>
+                  <li>• Public transport (buses, taxis)</li>
+                  <li>• Disabled vehicles with valid exemption</li>
                 </ul>
               </div>
 
               <button onClick={handleUpgrade} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
-                Get Premium Permit
+                🛒️ Get Premium Permit
               </button>
             </div>
           </div>
@@ -400,13 +406,15 @@ export default function ZtlMap() {
             <div className="text-center">
               <div className="text-6xl mb-4">Free limit reached</div>
               <h3 className="text-2xl font-bold text-gray-900 mb-2">You've used {3 - alertCount} free alerts today</h3>
-              <p className="text-gray-700 text-lg mb-4">Upgrade to Premium for unlimited alerts.</p>
+              <p className="text-gray-700 text-lg mb-4">
+                Upgrade to Premium for unlimited alerts.
+              </p>
               <div className="space-x-4 mt-6">
                 <button onClick={dismissUpgrade} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300">
                   Maybe later
                 </button>
                 <button onClick={handleUpgrade} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
-                  Upgrade to Premium
+                  🛒️ Upgrade to Premium
                 </button>
               </div>
             </div>
@@ -418,12 +426,14 @@ export default function ZtlMap() {
       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center">
-            <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026</h2>
-            <p className="text-xs text-gray-600 hidden sm:block">{3 - alertCount} free alerts today</p>
+            <h2 className="font-bold text-sm text-gray-900">🏔️ Olympic Shield 2026</h2>
+            <p className="text-xs text-gray-600 hidden sm:block">
+              {3 - alertCount} free alerts today
+            </p>
           </div>
 
           <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
-            Upgrade to Premium
+            🛒️ Upgrade to Premium
           </button>
         </div>
       </div>
