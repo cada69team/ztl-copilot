@@ -91,10 +91,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const fine = zone.properties.fine;
           const remaining = 3 - newCount;
 
-          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
-
+          onAlert(true, `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -502,39 +499,39 @@ export default function ZtlMap() {
       {/* Map */}
       {ztlZones && (
         <MapContainer
-          center={[45.4642, 9.1900]}
-          zoom={13}
-          className="h-[80%] w-full"
-          style={{ height: "80vh", width: "100%" }}
-          whenReady={handleMapReady}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
-          <LocationMarker
-            onAlert={handleAlert}
-            alertSound={alertSound}
-            onNearestZone={handleNearestZone}
-            ztlZones={ztlZones}
-          />
-          {ztlZones.features.map((f: ZoneFeature, i: number) => {
-            const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
-            const color = isNearest ? "red" : "orange";
-            const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
-            const fillOpacity = isNearest ? 0.5 : 0.2;
+            center={[45.4642, 9.1900]}
+            zoom={13}
+            className="h-[80%] w-full"
+            style={{ height: "80vh", width: "100%" }}
+            whenReady={handleMapReady}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            />
+            <LocationMarker
+              onAlert={handleAlert}
+              alertSound={alertSound}
+              onNearestZone={handleNearestZone}
+              ztlZones={ztlZones}
+            />
+            {ztlZones.features.map((f: ZoneFeature, i: number) => {
+              const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
+              const color = isNearest ? "red" : "orange";
+              const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
+              const fillOpacity = isNearest ? 0.5 : 0.2;
 
-            return (
-              <Polygon
-                key={i}
-                positions={f.geometry.coordinates}
-                eventHandlers={{ click: () => handleZoneClick(f) }}
-                color={color}
-                fillColor={fillColor}
-                fillOpacity={fillOpacity}
-              />
-            );
-          })}
+              return (
+                <Polygon
+                  key={i}
+                  positions={f.geometry.coordinates}
+                  eventHandlers={{ click: () => handleZoneClick(f) }}
+                  color={color}
+                  fillColor={fillColor}
+                  fillOpacity={fillOpacity}
+                />
+              );
+            })}
         </MapContainer>
       )}
 
@@ -639,9 +636,6 @@ export default function ZtlMap() {
                   {mapReady ? 'Map ready' : 'Map loading'}
                 </span>
               </div>
-              <p className="text-xs text-gray-600 hidden sm:block">
-                {3 - alertCount} free alerts today
-              </p>
             </div>
           </div>
 
