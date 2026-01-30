@@ -15,10 +15,11 @@ A PWA for avoiding ZTL fines during Milan 2026 Olympics.
 
 ### 📱️ PWA Capabilities
 - Installable on home screen (iOS & Android)
+- Professional PWA install prompts (bottom sheet, delayed prompt)
 - Full-screen mode for driving
 - Offline caching (map tiles, zone data)
-- Service worker for background updates
 - Works without internet (cached data)
+- Install prompt remembers user preference (7-day expiry)
 
 ### 💰 Monetization
 - Free tier: 3 alerts per day
@@ -32,8 +33,8 @@ A PWA for avoiding ZTL fines during Milan 2026 Olympics.
 - Prevents €85-150 ZTL fines
 - Saves users €100+ per incident
 - Clear upgrade path when frustrated
-- Professional PWA install prompts
-- Mobile-first UX design
+- Professional PWA install prompts increase conversion
+- Mobile-first UX design (optimized for driving)
 
 ## Tech Stack
 
@@ -60,6 +61,7 @@ A PWA for avoiding ZTL fines during Milan 2026 Olympics.
 - Test zone boundaries (drive virtually or use GPS simulation)
 - Verify alerts trigger at correct distances (200m, 100m, 50m)
 - Test PWA install prompt (should appear 5 seconds after load)
+- Test zone details modal (tap any red zone)
 
 ### Production Deployment
 ```bash
@@ -73,22 +75,22 @@ vercel --prod
 ztl-copilot/
 ├── app/
 │   ├── api/
-│   │   └── checkout.tsx          # Stripe checkout endpoint
+│   │   └── checkout.tsx             # Stripe checkout endpoint
 │   ├── pricing/
-│   │   └── page.tsx              # Free vs Premium tiers
-│   └── page.tsx                   # Main map page
+│   │   └── page.tsx                  # Free vs Premium tiers
+│   └── page.tsx                      # Main map page
 ├── components/
-│   └── Map.tsx                    # Main map + PWA prompts
+│   └── Map.tsx                      # Main map + PWA prompts
 ├── hooks/
-│   └── useZtlStatus.ts             # Zone active hours logic
+│   └── useZtlStatus.ts               # Zone active hours logic
 ├── public/
 │   ├── ztl-zones.json               # Zone data (Milan, Turin, Bergamo)
 │   ├── manifest.json                 # PWA manifest
-│   ├── icons/                       # App icons (192x192, 512x512)
-│   └── siren.mp3                   # Alert sound
+│   ├── icons/                        # App icons (192x192, 512x512)
+│   └── siren.mp3                    # Alert sound
 ├── memory/
-│   ├── phase2-complete.md           # Phase 2 documentation
-│   └── todays-accomplishments.md    # Today's session summary
+│   ├── phase2-complete.md              # Phase 2 documentation
+│   └── todays-accomplishments.md       # Daily session summaries
 └── next.config.mjs                   # PWA configuration
 ```
 
@@ -103,31 +105,31 @@ ztl-copilot/
 
 ### Premium Tier (€4.99 one-time)
 - Unlimited ZTL alerts
-- Approach warnings (200m, 100m, 50m)
+- Distance-based warnings (200m, 100m, 50m)
 - Zone details modal (hours, exceptions, permits)
-- Calm alert sounds vs siren
-- Multi-language (EN, IT, FR, DE)
-- Offline mode improvements
-- Alert history log
+- Multi-language (EN, IT, FR, DE) - Coming in Phase 4
+- Offline mode improvements - Coming in Phase 5
+- Alert history log - Coming in Phase 6
 - No ads
 
 ## Monetization Strategy
 
 ### Phase 1: Foundation ✅ COMPLETE
-- PWA install prompts
+- PWA install prompts (bottom sheet, delayed, 5s timing)
 - Stripe checkout integration
 - Free tier rate limiting (3/day)
 - Automatic upgrade prompts
+- Zone details modal with upgrade CTAs
 
 ### Phase 2: Polish UX (IN PROGRESS)
-- Calm alert sounds
-- Multi-language support
-- Alert history page
+- Calm alert sounds vs siren
+- Multi-language support (EN, IT, FR, DE)
 - Offline mode improvements
+- Alert history log page
 
-### Phase 3: Marketing (READY TO START)
-- Landing page with screenshots
-- SEO optimization (meta tags, structured data)
+### Phase 3: Marketing (PLANNED)
+- Landing page with screenshots/demo
+- SEO optimization (meta tags, structured data, sitemap)
 - Social media content (Instagram, Twitter/X, LinkedIn)
 - Explainer video showing app in action
 
@@ -143,9 +145,9 @@ Each zone includes:
 
 ### Alert Logic
 - 50m before zone: "INSIDE ZTL" + siren sound
-- 200m before zone: "ZTL in 200m - Turn right in 150m"
+- 200m before zone: "ZTL in 200m - Turn right in 150m to avoid"
 - 100m before zone: "ZTL 100m ahead - Prepare to turn"
-- Alert count tracks per GPS update
+- Alert count tracks per GPS position update
 - Daily limit resets at midnight
 
 ### PWA Install Prompt
@@ -153,12 +155,13 @@ Each zone includes:
 - Shows bottom sheet after 5 seconds (non-intrusive)
 - Stores dismissal in localStorage with 7-day expiry
 - Provides clear CTAs: "Add to Home Screen", "Maybe later", "Don't show again"
+- Uses app icon: `/icons/icon-192.png`
 
 ### localStorage Keys
 - `ztl-alert-count`: Daily alert count
 - `ztl-alert-date`: Last reset date
 - `pwa-install-dismissed`: User declined PWA install
-- `pwa-install-dismissed-date`: When user declined
+- `pwa-install-dismissed-date`: When user declined (7-day expiry)
 
 ## Performance Optimizations
 
@@ -166,10 +169,11 @@ Each zone includes:
 - Smooth GPS panning (0.5s animation vs instant)
 - Debounced geolocation updates
 - Service worker caching (PWA)
+- CSS animations (slide-up transitions) with GPU acceleration
 
 ## Known Issues
 
-- TypeScript errors with optional chaining (using type guards)
+- TypeScript strict typing (using type guards for optional chaining)
 - Turf.js coordinate type mismatches (using `any` for zones)
 - Zone precision (polygons approximated for demo)
 
