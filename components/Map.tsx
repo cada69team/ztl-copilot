@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
-import "leaflet/dist/leaflet.css";
 import { isZoneActive } from "@/hooks/useZtlStatus";
 // @ts-ignore
 import ztlZones from "../public/ztl-zones.json";
@@ -27,6 +26,11 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
   }, []);
 
   useEffect(() => {
+    if (!navigator.geolocation) {
+      console.error("Geolocation not supported");
+      return;
+    }
+
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -65,7 +69,9 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
           onAlert(false);
         }
       },
-      null,
+      (err) => {
+        console.error("Geolocation error:", err);
+      },
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
@@ -77,6 +83,7 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
 export default function ZtlMap() {
   const [isAlert, setIsAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
+  const [mapError, setMapError] = useState<string | null>(null);
 
   // Keep screen on while driving
   useEffect(() => {
@@ -92,8 +99,31 @@ export default function ZtlMap() {
 
   return (
     <div className={`h-screen w-full transition-colors duration-500 ${isAlert ? "bg-red-600 animate-pulse" : "bg-white"}`}>
-      <MapContainer center={[45.4642, 9.1900]} zoom={13} className="h-[80%] w-full">
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      {mapError && (
+        <div className="fixed inset-0 bg-red-50 flex items-center justify-center z-[2000]">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md">
+            <h3 className="text-lg font-bold text-red-600 mb-2">Map Error</h3>
+            <p className="text-gray-600">{mapError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      )}
+
+      <MapContainer
+        center={[45.4642, 9.1900]}
+        zoom={13}
+        className="h-[80%] w-full"
+        style={{ height: "80vh", width: "100%" }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
         {ztlZones.features.map((f: any, i: number) => (
           <Polygon
             key={i}
