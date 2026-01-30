@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
-// @ts-ignore
 import ztlZones from "../public/ztl-zones.json";
 
 interface LocationMarkerProps {
@@ -14,50 +13,39 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren] = useState<HTMLAudioElement | null>(null);
-
-  console.log("📍 LocationMarker mounted");
-
-  useEffect(() => {
-    // Preload siren
-    try {
-      const audio = new Audio("/siren.mp3");
-      audio.volume = 0.5;
-      console.log("🔊 Siren preloaded");
-      return () => {
-        audio.pause();
-        audio.remove();
-      };
-    } catch (e) {
-      console.error("❌ Siren preload failed:", e);
-    }
-  }, []);
+  const [nearestZone, setNearestZone] = useState<any>(null);
+  const [distanceToZone, setDistanceToZone] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!navigator.geolocation || !map) {
-      console.error("❌ Geolocation or map not available");
-      return;
-    }
+    if (!map) return;
 
-    console.log("🛰️ Starting geolocation watch");
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
-        console.log("📡 GPS update:", pos.coords.latitude, pos.coords.longitude);
         const { latitude, longitude } = pos.coords;
         setPosition([latitude, longitude]);
-        map.flyTo([latitude, longitude], 16);
 
-        // Geofencing Logic
         const pt = turf.point([longitude, latitude]);
 
-        // Check for approaching zone (50m warning)
-        const userBuffer = turf.buffer(pt, 0.05, { units: 'kilometers' });
-        const isApproaching = ztlZones.features.some((zone: any) => {
+        let nearest: any = null;
+        let minDistance = Infinity;
+
+        ztlZones.features.forEach((zone: any) => {
           const polygon = turf.polygon(zone.geometry.coordinates);
-          // @ts-ignore
-          return turf.booleanIntersects(userBuffer, polygon);
+          const distance = turf.pointToPolygonDistance(pt, polygon);
+          if (distance < minDistance && distance < 1.0) {
+            minDistance = distance;
+            nearest = zone;
+          }
         });
 
-        // Check if inside any active zone
+        setNearestZone(nearest);
+        const distInMeters = minDistance * 1000;
+        setDistanceToZone(distInMeters);
+
+        const approaching200m = minDistance < 0.2;
+        const approaching100m = minDistance < 0.1;
+        const insideZone = minDistance < 0.02;
+
         const activeViolations = ztlZones.features.filter((zone: any) => {
           const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
           const isActiveNow = isZoneActive(zone.properties.name);
@@ -65,19 +53,25 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
         });
 
         if (activeViolations.length > 0) {
-          const zone = activeViolations[0].properties;
-          console.log("🚨 ZTL ALERT:", zone);
-          onAlert(true, `⚠️ ACTIVE ZTL in ${zone.city}: ${zone.name}\nPotential Fine: €${zone.fine}`);
-          // Play siren on first alert
+          const zone = activeViolations[0];
+          const fine = zone.properties.fine || 0;
+          onAlert(true, `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${fine}`);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (isApproaching) {
-          console.log("⚡ Approaching zone");
-          onAlert(true, "⚠️ Approaching Olympic Restricted Zone - Check ahead!");
+        } else if (approaching200m) {
+          const zoneName = nearest?.properties?.name || "Unknown";
+          const cityName = nearest?.properties?.city || "Unknown";
+          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${cityName} - ${zoneName}\nTurn right in 150m to avoid`);
+        } else if (approaching100m) {
+          onAlert(true, `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn`);
         } else {
           onAlert(false);
+        }
+
+        if (map) {
+          map.panTo([latitude, longitude], { animate: true, duration: 0.5 });
         }
       },
       (err) => {
@@ -96,13 +90,11 @@ export default function ZtlMap() {
   const [alertMessage, setAlertMessage] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [nearestZone, setNearestZone] = useState<any>(null);
+  const [distanceToZone, setDistanceToZone] = useState<number | null>(null);
 
-  console.log("🗺️ ZtlMap mounted");
-
-  // Keep screen on while driving
   useEffect(() => {
     if ("wakeLock" in navigator) {
-      console.log("🔒 Requesting wake lock");
       (navigator as any).wakeLock.request("screen").catch((e: any) => {
         console.log("⚠️ Wake lock failed:", e.message);
       });
@@ -110,18 +102,15 @@ export default function ZtlMap() {
   }, []);
 
   const handleAlert = (active: boolean, message = "") => {
-    console.log("📢 Alert:", active, message);
     setIsAlert(active);
     setAlertMessage(message);
   };
 
   const handleMapReady = () => {
-    console.log("✅ Map ready!");
     setMapReady(true);
   };
 
   const handleMapError = () => {
-    console.error("❌ Map load error");
     setMapError("Failed to load map. Please refresh and check your connection.");
   };
 
@@ -169,10 +158,10 @@ export default function ZtlMap() {
         {ztlZones.features.map((f: any, i: number) => (
           <Polygon
             key={i}
-            positions={f.geometry.coordinates[0].map((c: any) => [c[1], c[0]])}
-            color="red"
-            fillColor="rgba(255, 0, 0, 0.2)"
-            fillOpacity={0.3}
+            positions={f.geometry.coordinates.map((c: any) => [c[1], c[0]])}
+            color={nearestZone?.properties?.name === f.properties?.name ? "red" : "orange"}
+            fillColor={nearestZone?.properties?.name === f.properties?.name ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
+            fillOpacity={nearestZone?.properties?.name === f.properties?.name ? 0.5 : 0.2}
           />
         ))}
         <LocationMarker onAlert={handleAlert} />
@@ -185,7 +174,16 @@ export default function ZtlMap() {
         </div>
       )}
 
-      {/* Top Header */}
+      {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && (
+        <div className="fixed top-20 left-4 right-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000] max-w-xs">
+          <p className="font-bold text-sm">🎯 {nearestZone.properties?.city}</p>
+          <p className="text-xs">{nearestZone.properties?.name}</p>
+          <p className="font-semibold text-sm">
+            {distanceToZone < 500 ? `${Math.round(distanceToZone)}m away` : `${Math.round(distanceToZone)}m warning`}
+          </p>
+        </div>
+      )}
+
       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center">
