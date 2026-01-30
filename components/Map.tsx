@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
-import ztlZones from "../public/ztl-zones.json";
 
 interface ZoneFeature {
   type: string;
@@ -163,6 +162,13 @@ export default function ZtlMap() {
     return 'siren';
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
+
+  useEffect(() => {
+    console.log("🗺️ Zones loaded:", ztlZones.features.length);
+    ztlZones.features.forEach((zone, i) => {
+      console.log(`🗺️ Zone ${i}: ${zone.properties.name}, coords:`, zone.geometry.coordinates);
+    });
+  }, []);
 
   const handleNearestZone = (zone: ZoneFeature | null) => {
     setNearestZone(zone);
@@ -504,7 +510,30 @@ export default function ZtlMap() {
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          const positions = f.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
+          // CRITICAL FIX: Handle coordinate structure properly
+          // GeoJSON Polygon: [[[lon1, lat1], [lon2, lat2], ...]]]
+          // React-Leaflet Polygon: [[[lat1, lon1], [lat2, lon2], ...]]]
+          let positions: [number, number][] = [];
+          
+          try {
+            // Log for debugging
+            console.log(`🔷 Rendering zone ${i}: ${f.properties.name}, isNearest: ${isNearest}`);
+            
+            if (f.geometry.type === "Polygon" && Array.isArray(f.geometry.coordinates)) {
+              f.geometry.coordinates.forEach((ring: any) => {
+                if (Array.isArray(ring)) {
+                  ring.forEach((coord: any) => {
+                    if (Array.isArray(coord) && coord.length === 2) {
+                      // GeoJSON format: [lon, lat] → React-Leaflet: [lat, lon]
+                      positions.push([coord[1], coord[0]]);
+                    }
+                  });
+                }
+              });
+            }
+          } catch (err) {
+            console.error("🔷 Error parsing coordinates for zone:", f.properties.name, err);
+          }
 
           return (
             <Polygon
