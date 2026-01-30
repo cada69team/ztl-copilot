@@ -67,3 +67,6 @@ export async function handler(req: NextRequest) {
     );
   }
 }
+
+export type Tier = 'basic' | 'premium' | 'lifetime';
+
