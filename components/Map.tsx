@@ -15,24 +15,33 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren] = useState<HTMLAudioElement | null>(null);
 
+  console.log("📍 LocationMarker mounted");
+
   useEffect(() => {
     // Preload siren
-    const audio = new Audio("/siren.mp3");
-    audio.volume = 0.5;
-    return () => {
-      audio.pause();
-      audio.remove();
-    };
+    try {
+      const audio = new Audio("/siren.mp3");
+      audio.volume = 0.5;
+      console.log("🔊 Siren preloaded");
+      return () => {
+        audio.pause();
+        audio.remove();
+      };
+    } catch (e) {
+      console.error("❌ Siren preload failed:", e);
+    }
   }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) {
-      console.error("Geolocation not supported");
+      console.error("❌ Geolocation not supported");
       return;
     }
 
+    console.log("🛰️ Starting geolocation watch");
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
+        console.log("📡 GPS update:", pos.coords.latitude, pos.coords.longitude);
         const { latitude, longitude } = pos.coords;
         setPosition([latitude, longitude]);
         map.flyTo([latitude, longitude], 16);
@@ -57,6 +66,7 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
 
         if (activeViolations.length > 0) {
           const zone = activeViolations[0].properties;
+          console.log("🚨 ZTL ALERT:", zone);
           onAlert(true, `⚠️ ACTIVE ZTL in ${zone.city}: ${zone.name}\nPotential Fine: €${zone.fine}`);
           // Play siren on first alert
           if (siren) {
@@ -64,13 +74,14 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
             siren.play().catch(() => {});
           }
         } else if (isApproaching) {
+          console.log("⚡ Approaching zone");
           onAlert(true, "⚠️ Approaching Olympic Restricted Zone - Check ahead!");
         } else {
           onAlert(false);
         }
       },
       (err) => {
-        console.error("Geolocation error:", err);
+        console.error("❌ Geolocation error:", err);
       },
       { enableHighAccuracy: true }
     );
@@ -84,17 +95,34 @@ export default function ZtlMap() {
   const [isAlert, setIsAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  console.log("🗺️ ZtlMap mounted");
 
   // Keep screen on while driving
   useEffect(() => {
     if ("wakeLock" in navigator) {
-      (navigator as any).wakeLock.request("screen").catch(() => {});
+      console.log("🔒 Requesting wake lock");
+      (navigator as any).wakeLock.request("screen").catch((e: any) => {
+        console.log("⚠️ Wake lock failed:", e.message);
+      });
     }
   }, []);
 
   const handleAlert = (active: boolean, message = "") => {
+    console.log("📢 Alert:", active, message);
     setIsAlert(active);
     setAlertMessage(message);
+  };
+
+  const handleMapReady = () => {
+    console.log("✅ Map ready!");
+    setMapReady(true);
+  };
+
+  const handleMapError = (e: any) => {
+    console.error("❌ Map error:", e);
+    setMapError(e?.message || "Failed to load map. Please check your connection.");
   };
 
   return (
@@ -114,11 +142,26 @@ export default function ZtlMap() {
         </div>
       )}
 
+      {!mapReady && (
+        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1000]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading map...</p>
+          </div>
+        </div>
+      )}
+
       <MapContainer
         center={[45.4642, 9.1900]}
         zoom={13}
         className="h-[80%] w-full"
         style={{ height: "80vh", width: "100%" }}
+        whenReady={handleMapReady}
+        whenCreated={handleMapReady}
+        eventHandlers={{
+          loaderror: handleMapError,
+          load: handleMapReady
+        }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
