@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { headers } from 'next/headers';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
-export const config = {
-  api: {
-    bodyParser: false,
-    externalResolver: true,
-  },
-};
-
-// CORS headers for Vercel
-async function handler(req: NextRequest) {
+export async function handler(req: NextRequest) {
   if (req.method !== 'POST') {
     return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
   }
@@ -20,22 +11,21 @@ async function handler(req: NextRequest) {
   try {
     const { tier } = await req.json();
 
-    // Define pricing tiers
     const tiers = {
       basic: {
         name: 'Basic Plan',
         priceId: process.env.STRIPE_PRICE_BASIC || 'price_1',
-        amount: 0, // Free plan
+        amount: 0,
       },
       premium: {
         name: 'Premium Plan',
         priceId: process.env.STRIPE_PRICE_PREMIUM || 'price_1',
-        amount: 499, // €4.99
+        amount: 499,
       },
       lifetime: {
         name: 'Lifetime Premium',
         priceId: process.env.STRIPE_PRICE_LIFETIME || 'price_1',
-        amount: 1999, // €19.99
+        amount: 1999,
       }
     };
 
@@ -45,7 +35,6 @@ async function handler(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
     }
 
-    // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -57,10 +46,10 @@ async function handler(req: NextRequest) {
       mode: 'payment',
       success_url: `${process.env.NEXT_PUBLIC_URL || ''}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_URL || ''}/payment/cancel?tier=${tier}`,
-      customer_email: 'customer@example.com', // You might want to collect this
+      customer_email: 'customer@example.com',
       metadata: {
         tier: tier,
-      userId: req.cookies.get('user-id') || 'anonymous',
+        userId: req.cookies.get('user-id') || 'anonymous',
       },
     });
 
@@ -78,5 +67,3 @@ async function handler(req: NextRequest) {
     );
   }
 }
-
-export default handler;
