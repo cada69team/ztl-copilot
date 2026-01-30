@@ -22,15 +22,13 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound, onNearestZone }: {
+function LocationMarker({ onAlert, alertSound }: {
   onAlert: (active: boolean, message?: string) => void;
   alertSound: AlertSound;
-  onNearestZone: (zone: ZoneFeature | null) => void;
 }) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
-  const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
@@ -57,63 +55,41 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
         let nearest: ZoneFeature | null = null;
         let minDistance = Infinity;
 
+        // Find nearest zone
         ztlZones.features.forEach((zone: ZoneFeature) => {
-          const polygon = turf.polygon(zone.geometry.coordinates);
-          const distance = turf.pointToPolygonDistance(pt, polygon);
-          if (distance < minDistance && distance < 1) {
-            minDistance = distance;
-            nearest = zone;
+          try {
+            const polygon = turf.polygon(zone.geometry.coordinates);
+            const distance = turf.pointToPolygonDistance(pt, polygon);
+            if (distance < minDistance && distance < 1) {
+              minDistance = distance;
+              nearest = zone;
+            }
+          } catch (err) {
+            console.error("Error processing zone:", zone.properties.name, err);
           }
         });
 
-        if (nearest) {
-          onNearestZone(nearest);
-        }
-
         const distInMeters = minDistance * 1000;
 
-        const approaching200m = minDistance < 0.2;
-        const approaching100m = minDistance < 0.1;
+        // Check for INSIDE ZTL
         const insideZone = minDistance < 0.02;
 
-        const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
-          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
-          const isActiveNow = isZoneActive(zone.properties.name);
-          return isInside && isActiveNow;
-        });
-
-        if (activeViolations.length > 0 && alertCount < 3) {
-          const zone = activeViolations[0];
+        if (insideZone) {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
+          onAlert(true, `⚠️ INSIDE ZTL in ${nearest?.properties?.city || "Unknown"}\nZone: ${nearest?.properties?.name || "Unknown"}\nFine: €${nearest?.properties?.fine || "0"}\n${3 - newCount} free alerts remaining today`);
 
-          const alertMessage = `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
-          onAlert(true, alertMessage);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCount < 3 && nearestZone) {
+        } else if (distInMeters < 200 && alertCount < 3) {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${(nearestZone as ZoneFeature).properties.city} - ${(nearestZone as ZoneFeature).properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearest?.properties?.city || "Unknown"} - ${nearest?.properties?.name || "Unknown"}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
 
-          if (alertSound === "siren") {
-            if (siren) {
-              siren.currentTime = 0;
-              siren.play().catch(() => {});
-            }
-          }
-        } else if (approaching100m && alertCount < 3) {
-          const newCount = alertCount + 1;
-          setAlertCount(newCount);
-
-          const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
-          onAlert(true, alertMessage);
-
-          if (siren) {
+          if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
@@ -130,8 +106,9 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
       },
       { enableHighAccuracy: true }
     );
+
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, nearestZone, alertSound, onNearestZone]);
+  }, [map, onAlert, siren, alertCount]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -160,18 +137,6 @@ export default function ZtlMap() {
     return 'siren';
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
-
-  const handleNearestZone = (zone: ZoneFeature | null) => {
-    setNearestZone(zone);
-    if (zone) {
-      const pt = turf.point([45.4642, 9.1900]);
-      const polygon = turf.polygon(zone.geometry.coordinates);
-      const distance = turf.pointToPolygonDistance(pt, polygon);
-      setDistanceToZone(distance * 1000);
-    } else {
-      setDistanceToZone(null);
-    }
-  };
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -224,6 +189,7 @@ export default function ZtlMap() {
 
   const handleZoneClick = (zone: ZoneFeature) => {
     setSelectedZone(zone);
+    setNearestZone(zone); // When user clicks zone, set it as nearest
   };
 
   const handleUpgrade = () => {
@@ -497,14 +463,21 @@ export default function ZtlMap() {
         />
         {ztlZones.features.map((f: ZoneFeature, i: number) => {
           const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
+          const color = isNearest ? "red" : "orange";
+          const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
+          const fillOpacity = isNearest ? 0.5 : 0.2;
+
+          // Debug: Log polygon rendering
+          console.log(`🔷 Rendering polygon ${i}: ${f.properties.name}, color: ${color}, nearest: ${isNearest ? 'YES' : 'NO'}`);
+
           return (
             <Polygon
               key={i}
               positions={f.geometry.coordinates}
               eventHandlers={{ click: () => handleZoneClick(f) }}
-              color={isNearest ? "red" : "orange"}
-              fillColor={isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
-              fillOpacity={isNearest ? 0.5 : 0.2}
+              color={color}
+              fillColor={fillColor}
+              fillOpacity={fillOpacity}
             />
           );
         })}
