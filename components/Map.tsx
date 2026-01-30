@@ -68,6 +68,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
         });
 
         if (nearest) {
+    const nearestZone = nearest as any;
+
           console.log("✅ LocationMarker: Nearest zone found:", nearest.properties.name);
           onNearestZone(nearest);
         }
