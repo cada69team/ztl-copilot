@@ -78,7 +78,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
         });
 
         if (nearest) {
-          console.log("🔷 Nearest zone found:", nearest.properties.name);
+          console.log("🔷 Nearest zone found:", nearest?.properties?.name);
           onNearestZone(nearest);
         }
 
@@ -109,7 +109,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
           setAlertCount(newCount);
 
           const nearestZone = nearest as ZoneFeature;
-          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone?.properties?.city || "Unknown"} - ${nearestZone?.properties?.name || "Unknown"}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
@@ -169,14 +169,14 @@ export default function ZtlMap() {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
   const handleNearestZone = (zone: ZoneFeature | null) => {
-    console.log("🔷 Nearest zone updated:", zone?.properties.name || "null");
+    console.log("🔶 Nearest zone updated:", zone?.properties?.name || "null");
     setNearestZone(zone);
   };
 
   useEffect(() => {
     console.log("🎯 ZtlMap component mounted");
     console.log("🎯 Map ready:", mapReady);
-    console.log("🎯 Nearest zone:", nearestZone?.properties.name || "null");
+    console.log("🎯 Nearest zone:", nearestZone?.properties?.name || "null");
   }, [mapReady, nearestZone]);
 
   useEffect(() => {
@@ -221,7 +221,7 @@ export default function ZtlMap() {
   };
 
   const handleMapReady = () => {
-    console.log("🎯 Map ready! Setting mapReady=true");
+    console.log("🗺️ Map ready! Setting mapReady=true");
     setMapReady(true);
   };
 
