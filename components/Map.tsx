@@ -85,7 +85,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const name = zone.properties.name || "Unknown";
           const fine = zone.properties.fine || "0";
 
-          const alertMessage = `⚠️ INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${3 - newCount} free alerts remaining today`;
+          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${3 - newCount} free alerts remaining today`;
           onAlert(true, alertMessage);
           if (siren) {
             siren.currentTime = 0;
@@ -98,7 +98,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const city = nearest.properties.city || "Unknown";
           const name = nearest.properties.name || "Unknown";
 
-          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${city} - ${name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+          const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${city} - ${name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
           onAlert(true, alertMessage);
 
           if (alertSound === "siren" && siren) {
@@ -109,7 +109,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
+          const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
           onAlert(true, alertMessage);
 
           if (siren) {
@@ -500,7 +500,6 @@ export default function ZtlMap() {
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          // CRITICAL FIX: Swap [lon, lat] → [lat, lon] for React-Leaflet
           const positions = f.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
 
           return (
