@@ -33,8 +33,8 @@ function LocationMarker({ onAlert }: LocationMarkerProps) {
   }, []);
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      console.error("❌ Geolocation not supported");
+    if (!navigator.geolocation || !map) {
+      console.error("❌ Geolocation or map not available");
       return;
     }
 
@@ -120,9 +120,9 @@ export default function ZtlMap() {
     setMapReady(true);
   };
 
-  const handleMapError = (e: any) => {
-    console.error("❌ Map error:", e);
-    setMapError(e?.message || "Failed to load map. Please check your connection.");
+  const handleMapError = () => {
+    console.error("❌ Map load error");
+    setMapError("Failed to load map. Please refresh and check your connection.");
   };
 
   return (
@@ -157,11 +157,6 @@ export default function ZtlMap() {
         className="h-[80%] w-full"
         style={{ height: "80vh", width: "100%" }}
         whenReady={handleMapReady}
-        whenCreated={handleMapReady}
-        eventHandlers={{
-          loaderror: handleMapError,
-          load: handleMapReady
-        }}
       >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
