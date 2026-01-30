@@ -46,6 +46,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
   useEffect(() => {
     if (!map || !ztlZones) return;
 
+    console.log("✅ LocationMarker: Map and zones available");
+
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
@@ -66,6 +68,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
         });
 
         if (nearest) {
+          console.log("🔷 Nearest zone:", nearest.properties.name);
           onNearestZone(nearest);
         }
 
@@ -86,12 +89,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const city = zone.properties.city;
-          const name = zone.properties.name;
-          const fine = zone.properties.fine;
-          const remaining = 3 - newCount;
-
-          onAlert(true, `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`);
+          onAlert(true, `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -100,14 +98,12 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const nearestCity = nearest?.properties?.city;
-          const nearestName = nearest?.properties?.name;
+          const nearestCity = nearest.properties.city;
+          const nearestName = nearest.properties.name;
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
 
-          const alertMessage = `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
+          onAlert(true, `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
@@ -120,9 +116,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
 
-          const alertMessage = `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
+          onAlert(true, `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`);
 
           if (siren) {
             siren.currentTime = 0;
@@ -154,6 +148,7 @@ export default function ZtlMap() {
   const [mapReady, setMapReady] = useState(false);
   const [zonesLoaded, setZonesLoaded] = useState(false);
   const [zonesCount, setZonesCount] = useState(0);
+  const [zonesError, setZonesError] = useState<string | null>(null);
   const [ztlZones, setZtlZones] = useState<any>(null);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
@@ -179,12 +174,28 @@ export default function ZtlMap() {
   };
 
   useEffect(() => {
-    if (ztlZones) {
-      const count = ztlZones.features?.length || 0;
-      setZonesCount(count);
-      setZonesLoaded(count > 0);
-    }
-  }, [ztlZones]);
+    console.log("🚨 ZtlMap component mounted");
+    console.log("🚨 Starting zones load...");
+
+    fetch('/ztl-zones.json')
+      .then(res => {
+        console.log("✅ Zones file loaded from network:", res.status);
+        return res.json();
+      })
+      .then(data => {
+        console.log("✅ Zones data parsed:", data);
+        console.log("✅ Zones count:", data.features?.length || 0);
+        setZtlZones(data);
+        setZonesCount(data.features?.length || 0);
+        setZonesLoaded(true);
+        setZonesError(null);
+      })
+      .catch(err => {
+        console.error("❌ Zones load error:", err);
+        setZonesError(`Failed to load zones: ${err.message}`);
+        setZonesLoaded(false);
+      });
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -228,6 +239,7 @@ export default function ZtlMap() {
   };
 
   const handleMapReady = () => {
+    console.log("✅ Map ready!");
     setMapReady(true);
   };
 
@@ -286,9 +298,30 @@ export default function ZtlMap() {
 
   return (
     <div className="h-screen w-full bg-white">
+      {/* Console Logs Display */}
+      <div className="fixed bottom-4 left-4 p-3 bg-black/90 text-white rounded-lg z-[3000] text-xs font-mono max-w-sm">
+        <div>🔷 Console Logs:</div>
+        {zonesLoaded && <div>✅ Zones loaded: {zonesCount} zones</div>}
+        {zonesError && <div className="text-red-300">❌ Zones error: {zonesError}</div>}
+        {mapReady && <div>✅ Map ready</div>}
+      </div>
+
+      {/* Zones Error Alert */}
+      {zonesError && (
+        <div className="fixed top-20 left-4 right-4 z-[2000]">
+          <div className="bg-red-50 border border-red-300 p-4 rounded-lg shadow-lg max-w-md">
+            <h3 className="text-lg font-bold text-red-600 mb-2">Zones Load Error</h3>
+            <p className="text-gray-700">{zonesError}</p>
+            <button onClick={() => window.location.reload()} className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+              Reload Page
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Install Instructions Modal */}
       {showInstallInstructions && (
-        <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 flex items-center justify-center z-[1999] bg-black/50 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-2xl font-bold text-gray-900">How to Install App</h2>
@@ -344,7 +377,7 @@ export default function ZtlMap() {
 
       {/* Sound Settings Modal */}
       {showSoundSettings && (
-        <div className="fixed inset-0 flex items-center justify-center z-[1999] bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 flex items-center justify-center z-[1998] bg-black/50 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-900">Alert Sound</h2>
@@ -418,7 +451,7 @@ export default function ZtlMap() {
 
       {/* PWA Install Prompt - Bottom Sheet (Mobile-First) */}
       {showInstallPrompt && (
-        <div className="fixed inset-x-0 bottom-0 z-[1998] animate-slide-up">
+        <div className="fixed inset-x-0 bottom-0 z-[1997] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4">
             <div className="max-w-md mx-auto">
               <div className="flex items-center justify-between mb-3">
@@ -453,7 +486,7 @@ export default function ZtlMap() {
 
       {/* Delayed Install Prompt */}
       {showDelayedPrompt && (
-        <div className="fixed bottom-4 right-4 z-[1997] animate-slide-up">
+        <div className="fixed bottom-4 right-4 z-[1996] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border border-gray-300 rounded-lg p-4 shadow-xl">
             <div className="flex items-center gap-3 max-w-sm mx-auto">
               <img src="/icons/icon-192.png" alt="App" className="w-8 h-8" />
@@ -475,7 +508,7 @@ export default function ZtlMap() {
 
       {/* Map Error */}
       {mapError && (
-        <div className="fixed inset-0 bg-red-50 flex items-center justify-center z-[2000]">
+        <div className="fixed inset-0 bg-red-50 flex items-center justify-center z-[1995]">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md">
             <h3 className="text-lg font-bold text-red-600 mb-2">Map Error</h3>
             <p className="text-gray-600">{mapError}</p>
@@ -487,57 +520,62 @@ export default function ZtlMap() {
       )}
 
       {/* Loading State */}
-      {!mapReady && !zonesLoaded && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && !showInstallInstructions && (
-        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1000]">
+      {!mapReady && !zonesLoaded && !mapError && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && !showInstallInstructions && (
+        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1994]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading zones...</p>
+            <p className="text-gray-600">Loading map and zones...</p>
           </div>
         </div>
       )}
 
       {/* Map */}
-      {ztlZones && (
-        <MapContainer
-            center={[45.4642, 9.1900]}
-            zoom={13}
-            className="h-[80%] w-full"
-            style={{ height: "80vh", width: "100%" }}
-            whenReady={handleMapReady}
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            />
-            <LocationMarker
-              onAlert={handleAlert}
-              alertSound={alertSound}
-              onNearestZone={handleNearestZone}
-              ztlZones={ztlZones}
-            />
-            {ztlZones.features.map((f: ZoneFeature, i: number) => {
-              const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
-              const color = isNearest ? "red" : "orange";
-              const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
-              const fillOpacity = isNearest ? 0.5 : 0.2;
+      <MapContainer
+        center={[45.4642, 9.1900]}
+        zoom={13}
+        className="h-[80%] w-full"
+        style={{ height: "80vh", width: "100%" }}
+        whenReady={handleMapReady}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        />
+        <LocationMarker
+          onAlert={handleAlert}
+          alertSound={alertSound}
+          onNearestZone={handleNearestZone}
+          ztlZones={ztlZones}
+        />
+        {ztlZones && ztlZones.features && ztlZones.features.map((f: ZoneFeature, i: number) => {
+          const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
+          const color = isNearest ? "red" : "orange";
+          const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
+          const fillOpacity = isNearest ? 0.5 : 0.2;
 
-              return (
-                <Polygon
-                  key={i}
-                  positions={f.geometry.coordinates}
-                  eventHandlers={{ click: () => handleZoneClick(f) }}
-                  color={color}
-                  fillColor={fillColor}
-                  fillOpacity={fillOpacity}
-                />
-              );
-            })}
-        </MapContainer>
-      )}
+          return (
+            <Polygon
+              key={i}
+              positions={f.geometry.coordinates}
+              eventHandlers={{ click: () => handleZoneClick(f) }}
+              color={color}
+              fillColor={fillColor}
+              fillOpacity={fillOpacity}
+            />
+          );
+        })}
+        {/* TEST POLYGON - Always renders blue box */}
+        <Polygon
+          positions={[[9.18, 45.47], [9.19, 45.47], [9.19, 45.46], [9.18, 45.46]]}
+          color="blue"
+          fillColor="rgba(0, 0, 255, 0.5)"
+          fillOpacity={0.5}
+        />
+      </MapContainer>
 
       {/* Alert Banner */}
       {isAlert && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1000] animate-slide-up">
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1993] animate-slide-up">
           <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
           <p className="text-sm mt-1">Tap to dismiss</p>
         </div>
@@ -545,7 +583,7 @@ export default function ZtlMap() {
 
       {/* Zone Details Modal */}
       {selectedZone && (
-        <div className="fixed inset-0 flex items-center justify-center z-[1500]">
+        <div className="fixed inset-0 flex items-center justify-center z-[1992]">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-2xl font-bold text-gray-900">{selectedZone.properties.city}</h2>
@@ -596,7 +634,7 @@ export default function ZtlMap() {
 
       {/* Upgrade Prompt */}
       {showUpgradePrompt && !selectedZone && (
-        <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 flex items-center justify-center z-[1991]">
           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
             <div className="text-center">
               <div className="text-6xl mb-4">Free limit reached</div>
@@ -618,7 +656,7 @@ export default function ZtlMap() {
       )}
 
       {/* Header with Diagnostic Status */}
-      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1990]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
@@ -628,12 +666,12 @@ export default function ZtlMap() {
             </button>
             <div>
               <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026</h2>
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 rounded ${zonesLoaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {zonesLoaded ? `✓ ${zonesCount} zones` : `✗ 0 zones`}
                 </span>
                 <span className={`px-2 py-1 rounded ${mapReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {mapReady ? 'Map ready' : 'Map loading'}
+                  {mapReady ? 'Map ready' : 'Loading'}
                 </span>
               </div>
             </div>
