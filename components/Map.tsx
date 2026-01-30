@@ -21,10 +21,11 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound, onNearestZone }: {
+function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
   onAlert: (active: boolean, message?: string) => void;
   alertSound: AlertSound;
   onNearestZone: (zone: ZoneFeature | null) => void;
+  ztlZones: any;
 }) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
@@ -43,7 +44,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   }, []);
 
   useEffect(() => {
-    if (!map) return;
+    if (!map || !ztlZones) return;
 
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
@@ -94,8 +95,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const nearestZone = nearest as ZoneFeature;
-          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
@@ -125,7 +125,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, onNearestZone]);
+  }, [map, onAlert, siren, alertCount, onNearestZone, ztlZones]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -137,6 +137,7 @@ export default function ZtlMap() {
   const [mapReady, setMapReady] = useState(false);
   const [zonesLoaded, setZonesLoaded] = useState(false);
   const [zonesCount, setZonesCount] = useState(0);
+  const [ztlZones, setZtlZones] = useState<any>(null);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
@@ -156,7 +157,9 @@ export default function ZtlMap() {
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
-  const [ztlZones, setZtlZones] = useState<any>(null);
+  const handleNearestZone = (zone: ZoneFeature | null) => {
+    setNearestZone(zone);
+  };
 
   useEffect(() => {
     // Load zones data from JSON file
@@ -172,10 +175,6 @@ export default function ZtlMap() {
         setZonesLoaded(false);
       });
   }, []);
-
-  const handleNearestZone = (zone: ZoneFeature | null) => {
-    setNearestZone(zone);
-  };
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -499,6 +498,12 @@ export default function ZtlMap() {
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          />
+          <LocationMarker
+            onAlert={handleAlert}
+            alertSound={alertSound}
+            onNearestZone={handleNearestZone}
+            ztlZones={ztlZones}
           />
           {ztlZones.features.map((f: ZoneFeature, i: number) => {
             const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
