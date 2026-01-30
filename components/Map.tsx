@@ -6,10 +6,6 @@ import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
 import ztlZones from "../public/ztl-zones.json";
 
-console.log("🚨 Map.tsx FILE LOADED");
-console.log("🚨 Zones data:", ztlZones);
-console.log("🚨 Zones count:", ztlZones.features?.length || 0);
-
 interface ZoneFeature {
   type: string;
   properties: {
@@ -37,10 +33,6 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
-    console.log("🎯 LocationMarker component mounted");
-  }, []);
-
-  useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
     sirenAudio.volume = 0.5;
     setSiren(sirenAudio);
@@ -52,11 +44,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   }, []);
 
   useEffect(() => {
-    if (!map) {
-      console.log("❌ Map not available yet");
-      return;
-    }
-    console.log("✅ Map available, starting GPS watcher");
+    if (!map) return;
 
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
@@ -148,6 +136,8 @@ export default function ZtlMap() {
   const [alertMessage, setAlertMessage] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [zonesLoaded, setZonesLoaded] = useState(false);
+  const [zonesCount, setZonesCount] = useState(0);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
@@ -168,15 +158,13 @@ export default function ZtlMap() {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
   const handleNearestZone = (zone: ZoneFeature | null) => {
-    console.log("🔷 Nearest zone updated:", zone?.properties?.name || "null");
     setNearestZone(zone);
   };
 
   useEffect(() => {
-    console.log("🎯 ZtlMap component mounted");
-    console.log("🎯 Map ready:", mapReady);
-    console.log("🎯 Nearest zone:", nearestZone?.properties?.name || "null");
-  }, [mapReady, nearestZone]);
+    setZonesCount(ztlZones.features?.length || 0);
+    setZonesLoaded(!!ztlZones.features?.length);
+  }, []);
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -220,7 +208,6 @@ export default function ZtlMap() {
   };
 
   const handleMapReady = () => {
-    console.log("🎯 Map ready! Setting mapReady=true");
     setMapReady(true);
   };
 
@@ -507,8 +494,6 @@ export default function ZtlMap() {
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          console.log(`🔷 Rendering polygon ${i}: ${f.properties.name}, isNearest: ${isNearest}, color: ${color}`);
-
           return (
             <Polygon
               key={i}
@@ -604,10 +589,10 @@ export default function ZtlMap() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Header with Diagnostic Status */}
       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center">
+          <div className="flex items-center gap-4">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
               <span className="text-2xl">
                 {alertSound === 'siren' ? '🚨' : alertSound === 'calm' ? '🔔' : '🔕'}
@@ -615,6 +600,14 @@ export default function ZtlMap() {
             </button>
             <div>
               <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026</h2>
+              <div className="flex items-center gap-2 text-xs">
+                <span className={`px-2 py-1 rounded ${zonesLoaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {zonesLoaded ? `✓ ${zonesCount} zones` : `✗ 0 zones`}
+                </span>
+                <span className={`px-2 py-1 rounded ${mapReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                  {mapReady ? 'Map ready' : 'Map loading'}
+                </span>
+              </div>
               <p className="text-xs text-gray-600 hidden sm:block">
                 {3 - alertCount} free alerts today
               </p>
