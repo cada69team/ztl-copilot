@@ -30,6 +30,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
+  const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
@@ -86,16 +87,18 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCount < 3 && nearest) {
+        } else if (approaching200m && alertCount < 3 && nearestZone) {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${(nearestZone as ZoneFeature).properties.city} - ${(nearestZone as ZoneFeature).properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
 
           if (alertSound === "siren") {
             if (siren) {
@@ -107,7 +110,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
 
           if (siren) {
             siren.currentTime = 0;
@@ -127,7 +131,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, onNearestZone]);
+  }, [map, onAlert, siren, alertCount, nearestZone, alertSound, onNearestZone]);
 
   return position ? <Marker position={position} /> : null;
 }
