@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
-
-// @ts-ignore
 import ztlZones from "../public/ztl-zones.json";
 
 interface ZoneFeature {
@@ -57,8 +55,7 @@ function LocationMarker({ onAlert, alertSound }: {
         let nearest: ZoneFeature | null = null;
         let minDistance = Infinity;
 
-        const zones = ztlZones as any;
-        zones.features?.forEach((zone: ZoneFeature) => {
+        ztlZones.features.forEach((zone: ZoneFeature) => {
           const polygon = turf.polygon(zone.geometry.coordinates);
           const distance = turf.pointToPolygonDistance(pt, polygon);
           if (distance < minDistance && distance < 1) {
@@ -67,64 +64,55 @@ function LocationMarker({ onAlert, alertSound }: {
           }
         });
 
-        const distInMeters = minDistance * 1000;
+        if (nearest) {
+          const distInMeters = minDistance * 1000;
 
-        const approaching200m = minDistance < 0.2;
-        const approaching100m = minDistance < 0.1;
-        const insideZone = minDistance < 0.02;
+          const approaching200m = minDistance < 0.2;
+          const approaching100m = minDistance < 0.1;
+          const insideZone = minDistance < 0.02;
 
-        const activeViolations = zones.features?.filter((zone: ZoneFeature) => {
-          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
-          const isActiveNow = isZoneActive(zone.properties.name);
-          return isInside && isActiveNow;
-        }) || [];
+          const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
+            const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
+            const isActiveNow = isZoneActive(zone.properties.name);
+            return isInside && isActiveNow;
+          });
 
-        if (activeViolations.length > 0 && alertCount < 3) {
-          const zone = activeViolations[0];
-          const newCount = alertCount + 1;
-          setAlertCount(newCount);
+          if (activeViolations.length > 0 && alertCount < 3) {
+            const zone = activeViolations[0];
+            const newCount = alertCount + 1;
+            setAlertCount(newCount);
 
-          const city = zone.properties.city;
-          const name = zone.properties.name;
-          const fine = zone.properties.fine;
-          const remaining = 3 - newCount;
+            const alertMessage = `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
+            onAlert(true, alertMessage);
+            if (siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else if (approaching200m && alertCount < 3) {
+            const newCount = alertCount + 1;
+            setAlertCount(newCount);
 
-          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
-          onAlert(true, alertMessage);
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
+            const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+            onAlert(true, alertMessage);
+
+            if (alertSound === "siren" && siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else if (approaching100m && alertCount < 3) {
+            const newCount = alertCount + 1;
+            setAlertCount(newCount);
+
+            const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
+            onAlert(true, alertMessage);
+
+            if (siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else {
+            onAlert(false);
           }
-        } else if (approaching200m && alertCount < 3 && nearest) {
-          const newCount = alertCount + 1;
-          setAlertCount(newCount);
-
-          const city = nearest.properties.city;
-          const name = nearest.properties.name;
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${city} - ${name}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
-          onAlert(true, alertMessage);
-
-          if (alertSound === "siren" && siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
-          }
-        } else if (approaching100m && alertCount < 3) {
-          const newCount = alertCount + 1;
-          setAlertCount(newCount);
-
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
-          onAlert(true, alertMessage);
-
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
-          }
-        } else {
-          onAlert(false);
         }
 
         if (map) {
@@ -137,7 +125,7 @@ function LocationMarker({ onAlert, alertSound }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, nearest]);
+  }, [map, onAlert, siren, alertCount]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -169,14 +157,6 @@ export default function ZtlMap() {
 
   const handleNearestZone = (zone: ZoneFeature | null) => {
     setNearestZone(zone);
-    if (zone) {
-      const pt = turf.point([45.4642, 9.1900]);
-      const polygon = turf.polygon(zone.geometry.coordinates);
-      const distance = turf.pointToPolygonDistance(pt, polygon);
-      setDistanceToZone(distance * 1000);
-    } else {
-      setDistanceToZone(null);
-    }
   };
 
   useEffect(() => {
@@ -501,23 +481,16 @@ export default function ZtlMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {(ztlZones as any).features?.map((f: ZoneFeature, i: number) => {
+        {ztlZones.features.map((f: ZoneFeature, i: number) => {
           const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
           const color = isNearest ? "red" : "orange";
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          const positions = f.geometry.coordinates.map((coord: any) => {
-            if (Array.isArray(coord) && coord.length === 2) {
-              return [coord[1], coord[0]]; // [lon, lat] → [lat, lon]
-            }
-            return coord;
-          });
-
           return (
             <Polygon
               key={i}
-              positions={positions}
+              positions={f.geometry.coordinates}
               eventHandlers={{ click: () => handleZoneClick(f) }}
               color={color}
               fillColor={fillColor}
@@ -532,17 +505,6 @@ export default function ZtlMap() {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1000] animate-slide-up">
           <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
           <p className="text-sm mt-1">Tap to dismiss</p>
-        </div>
-      )}
-
-      {/* Distance Indicator */}
-      {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && !showUpgradePrompt && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showInstallInstructions && !selectedZone && (
-        <div className="fixed top-20 left-4 right-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000] max-w-xs animate-slide-up">
-          <p className="font-bold text-sm">{nearestZone.properties.city}</p>
-          <p className="text-xs">{nearestZone.properties.name}</p>
-          <p className="font-semibold text-sm">
-            {distanceToZone < 500 ? `${Math.round(distanceToZone)}m away` : `${Math.round(distanceToZone)}m warning`}
-          </p>
         </div>
       )}
 
