@@ -125,6 +125,10 @@ export default function ZtlMap() {
     setMapError("Failed to load map. Please refresh and check your connection.");
   };
 
+  const handleUpgrade = () => {
+    window.location.href = '/pricing';
+  };
+
   return (
     <div className={`h-screen w-full transition-colors duration-500 ${isAlert ? "bg-red-600 animate-pulse" : "bg-white"}`}>
       {mapError && (
@@ -181,9 +185,21 @@ export default function ZtlMap() {
         </div>
       )}
 
-      <div className="fixed top-4 left-4 right-4 bg-white/90 backdrop-blur rounded-lg p-3 shadow-lg z-[1000]">
-        <h2 className="font-bold text-sm text-gray-900">🏔️ Olympic Shield 2026</h2>
-        <p className="text-xs text-gray-600">ZTL alerts for Milan & Olympic venues</p>
+      {/* Top Header */}
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur border-b border-gray-200 z-[1000]">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div className="flex items-center">
+            <h2 className="font-bold text-sm text-gray-900">🏔️ Olympic Shield 2026</h2>
+            <p className="text-xs text-gray-600 hidden sm:block">ZTL alerts for Milan & Olympic venues</p>
+          </div>
+
+          <button
+            onClick={handleUpgrade}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md"
+          >
+            🛒️ Upgrade to Premium
+          </button>
+        </div>
       </div>
     </div>
   );
