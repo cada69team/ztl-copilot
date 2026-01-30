@@ -64,55 +64,64 @@ function LocationMarker({ onAlert, alertSound }: {
           }
         });
 
-        if (nearest) {
-          const distInMeters = minDistance * 1000;
+        const distInMeters = minDistance * 1000;
 
-          const approaching200m = minDistance < 0.2;
-          const approaching100m = minDistance < 0.1;
-          const insideZone = minDistance < 0.02;
+        const approaching200m = minDistance < 0.2;
+        const approaching100m = minDistance < 0.1;
+        const insideZone = minDistance < 0.02;
 
-          const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
-            const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
-            const isActiveNow = isZoneActive(zone.properties.name);
-            return isInside && isActiveNow;
-          });
+        const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
+          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
+          const isActiveNow = isZoneActive(zone.properties.name);
+          return isInside && isActiveNow;
+        });
 
-          if (activeViolations.length > 0 && alertCount < 3) {
-            const zone = activeViolations[0];
-            const newCount = alertCount + 1;
-            setAlertCount(newCount);
+        if (activeViolations.length > 0 && alertCount < 3) {
+          const zone = activeViolations[0];
+          const newCount = alertCount + 1;
+          setAlertCount(newCount);
 
-            const alertMessage = `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
-            onAlert(true, alertMessage);
-            if (siren) {
-              siren.currentTime = 0;
-              siren.play().catch(() => {});
-            }
-          } else if (approaching200m && alertCount < 3) {
-            const newCount = alertCount + 1;
-            setAlertCount(newCount);
+          const city = zone.properties.city;
+          const name = zone.properties.name;
+          const fine = zone.properties.fine;
+          const remaining = 3 - newCount;
 
-            const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
-            onAlert(true, alertMessage);
-
-            if (alertSound === "siren" && siren) {
-              siren.currentTime = 0;
-              siren.play().catch(() => {});
-            }
-          } else if (approaching100m && alertCount < 3) {
-            const newCount = alertCount + 1;
-            setAlertCount(newCount);
-
-            const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
-            onAlert(true, alertMessage);
-
-            if (siren) {
-              siren.currentTime = 0;
-              siren.play().catch(() => {});
-            }
-          } else {
-            onAlert(false);
+          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
+          onAlert(true, alertMessage);
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
           }
+        } else if (approaching200m && alertCount < 3 && nearest) {
+          const newCount = alertCount + 1;
+          setAlertCount(newCount);
+
+          const nearestCity = nearest.properties.city;
+          const nearestName = nearest.properties.name;
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
+          onAlert(true, alertMessage);
+
+          if (alertSound === "siren" && siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
+        } else if (approaching100m && alertCount < 3) {
+          const newCount = alertCount + 1;
+          setAlertCount(newCount);
+
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
+          onAlert(true, alertMessage);
+
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
+        } else {
+          onAlert(false);
         }
 
         if (map) {
@@ -125,7 +134,7 @@ function LocationMarker({ onAlert, alertSound }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount]);
+  }, [map, onAlert, siren, alertCount, nearest]);
 
   return position ? <Marker position={position} /> : null;
 }
