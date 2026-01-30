@@ -6,6 +6,10 @@ import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
 import ztlZones from "../public/ztl-zones.json";
 
+console.log("🚨 Map.tsx FILE LOADED");
+console.log("🚨 Zones data:", ztlZones);
+console.log("🚨 Zones count:", ztlZones.features?.length || 0);
+
 interface ZoneFeature {
   type: string;
   properties: {
@@ -33,6 +37,10 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
+    console.log("🎯 LocationMarker component mounted");
+  }, []);
+
+  useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
     sirenAudio.volume = 0.5;
     setSiren(sirenAudio);
@@ -44,7 +52,11 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
   }, []);
 
   useEffect(() => {
-    if (!map) return;
+    if (!map) {
+      console.log("❌ Map not available yet");
+      return;
+    }
+    console.log("✅ Map available, starting GPS watcher");
 
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
@@ -66,6 +78,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone }: {
         });
 
         if (nearest) {
+          console.log("🔷 Nearest zone found:", nearest.properties.name);
           onNearestZone(nearest);
         }
 
@@ -156,8 +169,15 @@ export default function ZtlMap() {
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
   const handleNearestZone = (zone: ZoneFeature | null) => {
+    console.log("🔷 Nearest zone updated:", zone?.properties.name || "null");
     setNearestZone(zone);
   };
+
+  useEffect(() => {
+    console.log("🎯 ZtlMap component mounted");
+    console.log("🎯 Map ready:", mapReady);
+    console.log("🎯 Nearest zone:", nearestZone?.properties.name || "null");
+  }, [mapReady, nearestZone]);
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -201,6 +221,7 @@ export default function ZtlMap() {
   };
 
   const handleMapReady = () => {
+    console.log("🎯 Map ready! Setting mapReady=true");
     setMapReady(true);
   };
 
@@ -486,6 +507,8 @@ export default function ZtlMap() {
           const color = isNearest ? "red" : "orange";
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
+
+          console.log(`🔷 Rendering polygon ${i}: ${f.properties.name}, isNearest: ${isNearest}, color: ${color}`);
 
           return (
             <Polygon
