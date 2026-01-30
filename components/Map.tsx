@@ -81,13 +81,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const city = zone.properties.city;
-          const name = zone.properties.name;
-          const fine = zone.properties.fine;
-          const remaining = 3 - newCount;
-
-          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -96,12 +90,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const nearestCity = nearest.properties.city;
-          const nearestName = nearest.properties.name;
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL in ${distInMeters.toFixed(0)}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearest?.properties?.city || "Unknown"} - ${nearest?.properties?.name || "Unknown"}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
@@ -111,10 +100,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
-          onAlert(true, alertMessage);
+          onAlert(true, `ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
 
           if (siren) {
             siren.currentTime = 0;
