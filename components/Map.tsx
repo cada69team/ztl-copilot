@@ -214,7 +214,7 @@ export default function ZtlMap() {
     console.log("🚨 Loading zones from /ztl-zones.json...");
 
     // Load zones data from JSON file
-    fetch('/ztl-zones.json')
+    fetch('/public/ztl-zones.json')
       .then(res => {
         console.log("✅ Fetch response status:", res.status);
         return res.json();
