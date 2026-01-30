@@ -55,41 +55,57 @@ function LocationMarker({ onAlert, alertSound }: {
         let nearest: ZoneFeature | null = null;
         let minDistance = Infinity;
 
-        // Find nearest zone
         ztlZones.features.forEach((zone: ZoneFeature) => {
-          try {
-            const polygon = turf.polygon(zone.geometry.coordinates);
-            const distance = turf.pointToPolygonDistance(pt, polygon);
-            if (distance < minDistance && distance < 1) {
-              minDistance = distance;
-              nearest = zone;
-            }
-          } catch (err) {
-            console.error("Error processing zone:", zone.properties.name, err);
+          const polygon = turf.polygon(zone.geometry.coordinates);
+          const distance = turf.pointToPolygonDistance(pt, polygon);
+          if (distance < minDistance && distance < 1) {
+            minDistance = distance;
+            nearest = zone;
           }
         });
 
         const distInMeters = minDistance * 1000;
 
-        // Check for INSIDE ZTL
+        const approaching200m = minDistance < 0.2;
+        const approaching100m = minDistance < 0.1;
         const insideZone = minDistance < 0.02;
 
-        if (insideZone) {
+        const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
+          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
+          const isActiveNow = isZoneActive(zone.properties.name);
+          return isInside && isActiveNow;
+        });
+
+        if (activeViolations.length > 0 && alertCount < 3) {
+          const zone = activeViolations[0];
           const newCount = alertCount + 1;
           setAlertCount(newCount);
-          onAlert(true, `⚠️ INSIDE ZTL in ${nearest?.properties?.city || "Unknown"}\nZone: ${nearest?.properties?.name || "Unknown"}\nFine: €${nearest?.properties?.fine || "0"}\n${3 - newCount} free alerts remaining today`);
 
+          const alertMessage = `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (distInMeters < 200 && alertCount < 3) {
+        } else if (approaching200m && alertCount < 3 && nearest) {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearest?.properties?.city || "Unknown"} - ${nearest?.properties?.name || "Unknown"}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
 
           if (alertSound === "siren" && siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
+        } else if (approaching100m && alertCount < 3) {
+          const newCount = alertCount + 1;
+          setAlertCount(newCount);
+
+          const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
+
+          if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
@@ -106,9 +122,8 @@ function LocationMarker({ onAlert, alertSound }: {
       },
       { enableHighAccuracy: true }
     );
-
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount]);
+  }, [map, onAlert, siren, alertCount, nearest]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -137,6 +152,18 @@ export default function ZtlMap() {
     return 'siren';
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
+
+  const handleNearestZone = (zone: ZoneFeature | null) => {
+    setNearestZone(zone);
+    if (zone) {
+      const pt = turf.point([45.4642, 9.1900]);
+      const polygon = turf.polygon(zone.geometry.coordinates);
+      const distance = turf.pointToPolygonDistance(pt, polygon);
+      setDistanceToZone(distance * 1000);
+    } else {
+      setDistanceToZone(null);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -189,7 +216,6 @@ export default function ZtlMap() {
 
   const handleZoneClick = (zone: ZoneFeature) => {
     setSelectedZone(zone);
-    setNearestZone(zone); // When user clicks zone, set it as nearest
   };
 
   const handleUpgrade = () => {
@@ -467,13 +493,13 @@ export default function ZtlMap() {
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          // Debug: Log polygon rendering
-          console.log(`🔷 Rendering polygon ${i}: ${f.properties.name}, color: ${color}, nearest: ${isNearest ? 'YES' : 'NO'}`);
+          // CRITICAL FIX: Swap [lon, lat] → [lat, lon] for React-Leaflet
+          const positions = f.geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]]);
 
           return (
             <Polygon
               key={i}
-              positions={f.geometry.coordinates}
+              positions={positions}
               eventHandlers={{ click: () => handleZoneClick(f) }}
               color={color}
               fillColor={fillColor}
@@ -579,7 +605,7 @@ export default function ZtlMap() {
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center">
+          <div className="flex items-center gap-3">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
               <span className="text-2xl">
                 {alertSound === 'siren' ? '🚨' : alertSound === 'calm' ? '🔔' : '🔕'}
