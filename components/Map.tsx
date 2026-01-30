@@ -5,6 +5,9 @@ import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet"
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
 
+// @ts-ignore
+import ztlZones from "../public/ztl-zones.json";
+
 interface ZoneFeature {
   type: string;
   properties: {
@@ -54,7 +57,8 @@ function LocationMarker({ onAlert, alertSound }: {
         let nearest: ZoneFeature | null = null;
         let minDistance = Infinity;
 
-        ztlZones.features.forEach((zone: ZoneFeature) => {
+        const zones = ztlZones as any;
+        zones.features?.forEach((zone: ZoneFeature) => {
           const polygon = turf.polygon(zone.geometry.coordinates);
           const distance = turf.pointToPolygonDistance(pt, polygon);
           if (distance < minDistance && distance < 1) {
@@ -69,11 +73,11 @@ function LocationMarker({ onAlert, alertSound }: {
         const approaching100m = minDistance < 0.1;
         const insideZone = minDistance < 0.02;
 
-        const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
+        const activeViolations = zones.features?.filter((zone: ZoneFeature) => {
           const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
           const isActiveNow = isZoneActive(zone.properties.name);
           return isInside && isActiveNow;
-        });
+        }) || [];
 
         if (activeViolations.length > 0 && alertCount < 3) {
           const zone = activeViolations[0];
@@ -162,13 +166,6 @@ export default function ZtlMap() {
     return 'siren';
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
-
-  useEffect(() => {
-    console.log("🗺️ Zones loaded:", ztlZones.features.length);
-    ztlZones.features.forEach((zone, i) => {
-      console.log(`🗺️ Zone ${i}: ${zone.properties.name}, coords:`, zone.geometry.coordinates);
-    });
-  }, []);
 
   const handleNearestZone = (zone: ZoneFeature | null) => {
     setNearestZone(zone);
@@ -504,36 +501,18 @@ export default function ZtlMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {ztlZones.features.map((f: ZoneFeature, i: number) => {
+        {(ztlZones as any).features?.map((f: ZoneFeature, i: number) => {
           const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
           const color = isNearest ? "red" : "orange";
           const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
           const fillOpacity = isNearest ? 0.5 : 0.2;
 
-          // CRITICAL FIX: Handle coordinate structure properly
-          // GeoJSON Polygon: [[[lon1, lat1], [lon2, lat2], ...]]]
-          // React-Leaflet Polygon: [[[lat1, lon1], [lat2, lon2], ...]]]
-          let positions: [number, number][] = [];
-          
-          try {
-            // Log for debugging
-            console.log(`🔷 Rendering zone ${i}: ${f.properties.name}, isNearest: ${isNearest}`);
-            
-            if (f.geometry.type === "Polygon" && Array.isArray(f.geometry.coordinates)) {
-              f.geometry.coordinates.forEach((ring: any) => {
-                if (Array.isArray(ring)) {
-                  ring.forEach((coord: any) => {
-                    if (Array.isArray(coord) && coord.length === 2) {
-                      // GeoJSON format: [lon, lat] → React-Leaflet: [lat, lon]
-                      positions.push([coord[1], coord[0]]);
-                    }
-                  });
-                }
-              });
+          const positions = f.geometry.coordinates.map((coord: any) => {
+            if (Array.isArray(coord) && coord.length === 2) {
+              return [coord[1], coord[0]]; // [lon, lat] → [lat, lon]
             }
-          } catch (err) {
-            console.error("🔷 Error parsing coordinates for zone:", f.properties.name, err);
-          }
+            return coord;
+          });
 
           return (
             <Polygon
