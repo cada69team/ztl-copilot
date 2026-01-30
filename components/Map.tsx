@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
-import ztlZones from "../public/ztl-zones.json";
+import zonesJson from "/ztl-zones.json";
+
+const ztlZones = zonesJson as any;
+
+console.log("🚨 Map.tsx FILE LOADED");
+console.log("🚨 Zones data:", ztlZones);
+console.log("🚨 Zones count:", ztlZones.features?.length || 0);
 
 interface ZoneFeature {
   type: string;
@@ -162,8 +168,9 @@ export default function ZtlMap() {
   };
 
   useEffect(() => {
-    setZonesCount(ztlZones.features?.length || 0);
-    setZonesLoaded(!!ztlZones.features?.length);
+    const count = ztlZones.features?.length || 0;
+    setZonesCount(count);
+    setZonesLoaded(count > 0);
   }, []);
 
   useEffect(() => {
@@ -608,9 +615,6 @@ export default function ZtlMap() {
                   {mapReady ? 'Map ready' : 'Map loading'}
                 </span>
               </div>
-              <p className="text-xs text-gray-600 hidden sm:block">
-                {3 - alertCount} free alerts today
-              </p>
             </div>
           </div>
 
