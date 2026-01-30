@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
+import ztlZones from "../public/ztl-zones.json";
 
 interface ZoneFeature {
   type: string;
@@ -89,8 +90,7 @@ function LocationMarker({ onAlert, alertSound }: {
           const newCount = alertCount + 1;
           setAlertCount(newCount);
 
-          const nearestZone = nearest as ZoneFeature;
-          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
+          onAlert(true, `ZTL in ${distInMeters.toFixed(0)}m\n${nearest.properties.city} - ${nearest.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
 
           if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
