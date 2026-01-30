@@ -22,7 +22,11 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, message?: string) => void; alertSound: AlertSound }) {
+function LocationMarker({ onAlert, alertSound, onNearestZone }: {
+  onAlert: (active: boolean, message?: string) => void;
+  alertSound: AlertSound;
+  onNearestZone: (zone: ZoneFeature | null) => void;
+}) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
@@ -30,17 +34,14 @@ function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, me
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
-    const saved = localStorage.getItem('ztl-alert-count');
-    const today = new Date().toDateString();
-    const savedDate = localStorage.getItem('ztl-alert-date');
+    const sirenAudio = new Audio("/siren.mp3");
+    sirenAudio.volume = 0.5;
+    setSiren(sirenAudio);
 
-    if (savedDate !== today) {
-      localStorage.setItem('ztl-alert-date', today);
-      localStorage.setItem('ztl-alert-count', '0');
-      setAlertCount(0);
-    } else if (saved) {
-      setAlertCount(parseInt(saved, 10));
-    }
+    return () => {
+      sirenAudio.pause();
+      sirenAudio.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -65,7 +66,10 @@ function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, me
           }
         });
 
-        setNearestZone(nearest);
+        if (nearest) {
+          onNearestZone(nearest);
+        }
+
         const distInMeters = minDistance * 1000;
 
         const approaching200m = minDistance < 0.2;
@@ -81,24 +85,20 @@ function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, me
         if (activeViolations.length > 0 && alertCount < 3) {
           const zone = activeViolations[0];
           const newCount = alertCount + 1;
-          localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
         } else if (approaching200m && alertCount < 3 && nearestZone) {
-          const zoneName = nearestZone.properties.name;
-          const cityName = nearestZone.properties.city;
           const newCount = alertCount + 1;
-          localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
-          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${cityName} - ${zoneName}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
           onAlert(true, alertMessage);
-
           if (alertSound === "siren") {
             if (siren) {
               siren.currentTime = 0;
@@ -107,11 +107,14 @@ function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, me
           }
         } else if (approaching100m && alertCount < 3) {
           const newCount = alertCount + 1;
-          localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
           const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
           onAlert(true, alertMessage);
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
         } else {
           onAlert(false);
         }
@@ -126,14 +129,14 @@ function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, me
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, nearestZone]);
+  }, [map, onAlert, siren, alertCount, nearestZone, alertSound, onNearestZone]);
 
   return position ? <Marker position={position} /> : null;
 }
 
 export default function ZtlMap() {
   const [isAlert, setIsAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
+  const [alertMessage, setalertMessage] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
@@ -156,42 +159,30 @@ export default function ZtlMap() {
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('ztl-alert-count');
-    const today = new Date().toDateString();
-    const savedDate = localStorage.getItem('ztl-alert-date');
-
-    if (savedDate !== today) {
-      localStorage.setItem('ztl-alert-date', today);
-      localStorage.setItem('ztl-alert-count', '0');
-      setAlertCount(0);
-    } else if (saved) {
-      setAlertCount(parseInt(saved, 10));
+  const handleNearestZone = (zone: ZoneFeature | null) => {
+    setNearestZone(zone);
+    if (zone) {
+      const pt = turf.point([45.4642, 9.1900]);
+      const polygon = turf.polygon(zone.geometry.coordinates);
+      const distance = turf.pointToPolygonDistance(pt, polygon);
+      setDistanceToZone(distance * 1000);
+    } else {
+      setDistanceToZone(null);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    setIsInstalled(window.matchMedia('(display-mode: standalone)').matches);
-  }, []);
-
-  useEffect(() => {
-    const hasDismissed = localStorage.getItem('pwa-install-dismissed');
-    const dismissedDate = localStorage.getItem('pwa-install-dismissed-date');
-    const today = new Date().toDateString();
-    const wasDismissedRecently = hasDismissed && dismissedDate === today;
-
-    if (!isInstalled && !wasDismissedRecently && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings) {
-      const timer = setTimeout(() => {
-        setShowDelayedPrompt(true);
-      }, 5000);
-      return () => clearTimeout(timer);
+    console.log("🔴 nearestZone state changed:", nearestZone);
+    console.log("🔴 Number of zones:", ztlZones.features.length);
+    if (nearestZone) {
+      console.log("🔴 Nearest zone name:", nearestZone.properties.name);
     }
-  }, [isInstalled, showInstallPrompt, showDelayedPrompt, showSoundSettings]);
+  }, [nearestZone]);
 
   const handleAlert = (active: boolean, message = "") => {
     console.log("📢 Alert:", active, message);
     setIsAlert(active);
-    setAlertMessage(message);
+    setalertMessage(message);
 
     if (alertCount >= 3 && !showUpgradePrompt) {
       setShowUpgradePrompt(true);
@@ -221,7 +212,6 @@ export default function ZtlMap() {
   const handleInstallApp = () => {
     const win = window as any;
 
-    // Check if deferred prompt is available
     if (win && win.deferredPrompt && win.deferredPrompt.prompt) {
       win.deferredPrompt.prompt();
       localStorage.setItem('pwa-install-dismissed', 'true');
@@ -229,7 +219,6 @@ export default function ZtlMap() {
       setShowInstallPrompt(false);
       setShowDelayedPrompt(false);
     } else {
-      // If deferred prompt not available, show instructions
       setShowInstallInstructions(true);
     }
   };
@@ -274,8 +263,8 @@ export default function ZtlMap() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">On Chrome (Android & Desktop)</h3>
                 <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                  <li>Tap <strong>⋮</strong> in the address bar</li>
-                  <li>Select <strong>"Add Olympic Shield 2026 to Home screen..."</strong></li>
+                  <li>Tap <strong>⋮</strong> in address bar</li>
+                  <li>Select <strong>"Add Olympic Shield 2026 to Home Screen..."</strong></li>
                   <li>Tap <strong>"Add"</strong></li>
                 </ol>
               </div>
@@ -292,7 +281,7 @@ export default function ZtlMap() {
               <div>
                 <h3 className="text-lg font-bold text-gray-900 mb-2">On Firefox (Android)</h3>
                 <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                  <li>Tap <strong>⋮</strong> in the address bar</li>
+                  <li>Tap <strong>⋮</strong> in address bar</li>
                   <li>Select <strong>"Install App"</strong></li>
                 </ol>
               </div>
@@ -301,7 +290,7 @@ export default function ZtlMap() {
                 <h4 className="font-bold text-gray-900 mb-2">Why Install?</h4>
                 <ul className="space-y-1 text-sm text-gray-700">
                   <li>• Get full-screen ZTL alerts while driving</li>
-                  <li>• Never miss a ZTL warning with push notifications</li>
+                  <li>• Never miss a ZTL warning</li>
                   <li>• Works offline (cached zone data)</li>
                   <li>• Faster loading with service worker caching</li>
                 </ul>
@@ -399,7 +388,7 @@ export default function ZtlMap() {
                   <img src="/icons/icon-192.png" alt="App" className="w-12 h-12" />
                   <div>
                     <h3 className="text-lg font-bold text-gray-900">Install App</h3>
-                    <p className="text-sm text-gray-600">Get full-screen ZTL alerts while driving</p>
+                    <p className="text-sm text-gray-600">Get full-screen ZTL alerts</p>
                   </div>
                 </div>
                 <button onClick={handleDontShowAgain} className="text-gray-400 hover:text-gray-600 text-sm">
@@ -481,16 +470,19 @@ export default function ZtlMap() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {ztlZones.features.map((f: ZoneFeature, i: number) => (
-          <Polygon
-            key={i}
-            positions={f.geometry.coordinates}
-            eventHandlers={{ click: () => handleZoneClick(f) }}
-            color={nearestZone?.properties?.name === f.properties?.name ? "red" : "orange"}
-            fillColor={nearestZone?.properties?.name === f.properties?.name ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
-            fillOpacity={nearestZone?.properties?.name === f.properties?.name ? 0.5 : 0.2}
-          />
-        ))}
+        {ztlZones.features.map((f: ZoneFeature, i: number) => {
+          const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
+          return (
+            <Polygon
+              key={i}
+              positions={f.geometry.coordinates}
+              eventHandlers={{ click: () => handleZoneClick(f) }}
+              color={isNearest ? "red" : "orange"}
+              fillColor={isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
+              fillOpacity={isNearest ? 0.5 : 0.2}
+            />
+          );
+        })}
       </MapContainer>
 
       {/* Alert Banner */}
@@ -502,7 +494,7 @@ export default function ZtlMap() {
       )}
 
       {/* Distance Indicator */}
-      {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && !showUpgradePrompt && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !selectedZone && !showInstallInstructions && (
+      {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && !showUpgradePrompt && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showInstallInstructions && !selectedZone && (
         <div className="fixed top-20 left-4 right-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000] max-w-xs animate-slide-up">
           <p className="font-bold text-sm">{nearestZone.properties.city}</p>
           <p className="text-xs">{nearestZone.properties.name}</p>
@@ -537,7 +529,7 @@ export default function ZtlMap() {
                   <p className="text-sm text-gray-600">Potential fine</p>
                 </div>
                 <div className="bg-orange-50 p-3 rounded-lg">
-                  <p className="text-lg font-bold text-orange-700">⏰ Check hours</p>
+                  <p className="text-lg font-bold text-orange-700">Check hours</p>
                   <p className="text-sm text-gray-600 mt-1">
                     {selectedZone.properties.name === "Area C" ? "Mon-Fri 07:30-18:30" : "Check local signage"}
                   </p>
@@ -556,7 +548,7 @@ export default function ZtlMap() {
               </div>
 
               <button onClick={handleUpgrade} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
-                🛒️ Get Premium Permit
+                Get Premium Permit
               </button>
             </div>
           </div>
@@ -578,7 +570,7 @@ export default function ZtlMap() {
                   Maybe later
                 </button>
                 <button onClick={handleUpgrade} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
-                  🛒️ Upgrade to Premium
+                  Upgrade to Premium
                 </button>
               </div>
             </div>
@@ -589,7 +581,7 @@ export default function ZtlMap() {
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
               <span className="text-2xl">
                 {alertSound === 'siren' ? '🚨' : alertSound === 'calm' ? '🔔' : '🔕'}
@@ -604,7 +596,7 @@ export default function ZtlMap() {
           </div>
 
           <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
-            🛒️ Upgrade to Premium
+            Upgrade to Premium
           </button>
         </div>
       </div>
