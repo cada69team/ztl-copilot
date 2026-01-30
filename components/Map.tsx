@@ -8,11 +8,21 @@ import ztlZones from "../public/ztl-zones.json";
 
 interface ZoneFeature {
   type: string;
-  properties: any;
-  geometry: any;
+  properties: {
+    city: string;
+    name: string;
+    fine: number;
+    note?: string;
+  };
+  geometry: {
+    type: string;
+    coordinates: any;
+  };
 }
 
-function LocationMarker({ onAlert }: { onAlert: (active: boolean, message?: string) => void }) {
+type AlertSound = "siren" | "calm" | "silent";
+
+function LocationMarker({ onAlert, alertSound }: { onAlert: (active: boolean, message?: string) => void; alertSound: AlertSound }) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
@@ -74,20 +84,22 @@ function LocationMarker({ onAlert }: { onAlert: (active: boolean, message?: stri
           localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ INSIDE ZTL in ${zone.properties.city}\nZone: ${zone.properties.name}\nFine: €${zone.properties.fine}\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
+
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCount < 3) {
-          const zoneName = (nearest as any)?.properties?.name || "Unknown";
-          const cityName = (nearest as any)?.properties?.city || "Unknown";
+        } else if (approaching200m && alertCount < 3 && nearestZone) {
           const newCount = alertCount + 1;
           localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${cityName} - ${zoneName}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`);
-          if (siren) {
+          const alertMessage = `⚠️ ZTL in ${distInMeters.toFixed(0)}m\n${nearestZone.properties.city} - ${nearestZone.properties.name}\nTurn right in 150m to avoid\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
+
+          if (alertSound === "siren" && siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
@@ -96,7 +108,9 @@ function LocationMarker({ onAlert }: { onAlert: (active: boolean, message?: stri
           localStorage.setItem('ztl-alert-count', newCount.toString());
           setAlertCount(newCount);
 
-          onAlert(true, `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`);
+          const alertMessage = `⚠️ ZTL ${distInMeters.toFixed(0)}m ahead\nPrepare to turn\n${3 - newCount} free alerts remaining today`;
+          onAlert(true, alertMessage);
+
           if (siren) {
             siren.currentTime = 0;
             siren.play().catch(() => {});
@@ -115,7 +129,7 @@ function LocationMarker({ onAlert }: { onAlert: (active: boolean, message?: stri
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount]);
+  }, [map, onAlert, siren, alertCount, nearestZone]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -134,6 +148,15 @@ export default function ZtlMap() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showDelayedPrompt, setShowDelayedPrompt] = useState(false);
+
+  const [alertSound, setAlertSound] = useState<AlertSound>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('alert-sound-preference');
+      return (stored as AlertSound) || 'siren';
+    }
+    return 'siren';
+  });
+  const [showSoundSettings, setShowSoundSettings] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('ztl-alert-count');
@@ -159,15 +182,16 @@ export default function ZtlMap() {
     const today = new Date().toDateString();
     const wasDismissedRecently = hasDismissed && dismissedDate === today;
 
-    if (!isInstalled && !wasDismissedRecently && !showInstallPrompt && !showDelayedPrompt) {
+    if (!isInstalled && !wasDismissedRecently && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings) {
       const timer = setTimeout(() => {
         setShowDelayedPrompt(true);
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [isInstalled, showInstallPrompt, showDelayedPrompt]);
+  }, [isInstalled, showInstallPrompt, showDelayedPrompt, showSoundSettings]);
 
   const handleAlert = (active: boolean, message = "") => {
+    console.log("📢 Alert:", active, message);
     setIsAlert(active);
     setAlertMessage(message);
 
@@ -223,11 +247,90 @@ export default function ZtlMap() {
     setShowDelayedPrompt(false);
   };
 
+  const handleSoundChange = (sound: AlertSound) => {
+    setAlertSound(sound);
+    localStorage.setItem('alert-sound-preference', sound);
+  };
+
   return (
     <div className="h-screen w-full bg-white">
+      {/* Sound Settings Modal */}
+      {showSoundSettings && (
+        <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/50 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Alert Sound</h2>
+              <button onClick={() => setShowSoundSettings(false)} className="text-gray-400 hover:text-gray-600 text-2xl">
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => { handleSoundChange('siren'); setShowSoundSettings(false); }}
+                className={`w-full p-4 rounded-lg font-medium transition border-2 flex items-center gap-3 ${
+                  alertSound === 'siren' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-red-300 text-gray-700'
+                }`}
+              >
+                <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                  🚨
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold">Siren</div>
+                  <div className="text-sm text-gray-600">Critical ZTL alerts</div>
+                </div>
+                {alertSound === 'siren' && (
+                  <span className="text-2xl ml-auto">✓</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => { handleSoundChange('calm'); setShowSoundSettings(false); }}
+                className={`w-full p-4 rounded-lg font-medium transition border-2 flex items-center gap-3 ${
+                  alertSound === 'calm' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300 text-gray-700'
+                }`}
+              >
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  🔔
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold">Chime</div>
+                  <div className="text-sm text-gray-600">Pleasant, not scary</div>
+                </div>
+                {alertSound === 'calm' && (
+                  <span className="text-2xl ml-auto">✓</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => { handleSoundChange('silent'); setShowSoundSettings(false); }}
+                className={`w-full p-4 rounded-lg font-medium transition border-2 flex items-center gap-3 ${
+                  alertSound === 'silent' ? 'border-gray-500 bg-gray-50 text-gray-700' : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                }`}
+              >
+                <div className="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center">
+                  🔕
+                </div>
+                <div className="text-left">
+                  <div className="font-semibold">Silent</div>
+                  <div className="text-sm text-gray-600">No alerts</div>
+                </div>
+                {alertSound === 'silent' && (
+                  <span className="text-2xl ml-auto">✓</span>
+                )}
+              </button>
+            </div>
+
+            <div className="text-sm text-gray-500 mt-4 mb-4">
+              Choose your alert sound preference. Siren plays for all INSIDE ZTL alerts regardless of setting.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PWA Install Prompt - Bottom Sheet (Mobile-First) */}
       {showInstallPrompt && (
-        <div className="fixed inset-x-0 bottom-0 z-[2000] animate-slide-up">
+        <div className="fixed inset-x-0 bottom-0 z-[1999] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4">
             <div className="max-w-md mx-auto">
               <div className="flex items-center justify-between mb-3">
@@ -262,7 +365,7 @@ export default function ZtlMap() {
 
       {/* Delayed Install Prompt */}
       {showDelayedPrompt && (
-        <div className="fixed bottom-4 right-4 z-[1999] animate-slide-up">
+        <div className="fixed bottom-4 right-4 z-[1998] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border border-gray-300 rounded-lg p-4 shadow-xl">
             <div className="flex items-center gap-3 max-w-sm mx-auto">
               <img src="/icons/icon-192.png" alt="App" className="w-8 h-8" />
@@ -296,7 +399,7 @@ export default function ZtlMap() {
       )}
 
       {/* Loading State */}
-      {!mapReady && !showInstallPrompt && !showDelayedPrompt && !showUpgradePrompt && !selectedZone && (
+      {!mapReady && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && (
         <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1000]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -338,7 +441,7 @@ export default function ZtlMap() {
       )}
 
       {/* Distance Indicator */}
-      {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && !showUpgradePrompt && !showInstallPrompt && !showDelayedPrompt && (
+      {nearestZone && distanceToZone !== null && distanceToZone < 1000 && !isAlert && !showUpgradePrompt && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !selectedZone && (
         <div className="fixed top-20 left-4 right-4 bg-blue-600 text-white p-3 rounded-lg shadow-lg z-[1000] max-w-xs animate-slide-up">
           <p className="font-bold text-sm">{nearestZone.properties.city}</p>
           <p className="text-xs">{nearestZone.properties.name}</p>
@@ -401,7 +504,7 @@ export default function ZtlMap() {
 
       {/* Upgrade Prompt */}
       {showUpgradePrompt && !selectedZone && (
-        <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/80 backdrop-blur-sm animate-slide-up">
           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
             <div className="text-center">
               <div className="text-6xl mb-4">Free limit reached</div>
@@ -426,10 +529,17 @@ export default function ZtlMap() {
       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center">
-            <h2 className="font-bold text-sm text-gray-900">🏔️ Olympic Shield 2026</h2>
-            <p className="text-xs text-gray-600 hidden sm:block">
-              {3 - alertCount} free alerts today
-            </p>
+            <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
+              <span className="text-2xl">
+                {alertSound === 'siren' ? '🚨' : alertSound === 'calm' ? '🔔' : '🔕'}
+              </span>
+            </button>
+            <div>
+              <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026</h2>
+              <p className="text-xs text-gray-600 hidden sm:block">
+                {3 - alertCount} free alerts today
+              </p>
+            </div>
           </div>
 
           <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
