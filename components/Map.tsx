@@ -22,10 +22,11 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
+function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, ztlZones }: {
   onAlert: (active: boolean, message?: string) => void;
   alertSound: AlertSound;
   onNearestZone: (zone: ZoneFeature | null) => void;
+  onPositionUpdate: (position: [number, number] | null) => void;
   ztlZones: any;
 }) {
   const map = useMap();
@@ -53,6 +54,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
       (pos) => {
         const { latitude, longitude } = pos.coords;
         setPosition([latitude, longitude]);
+        onPositionUpdate([latitude, longitude]);
 
         const pt = turf.point([longitude, latitude]);
 
@@ -150,7 +152,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, onNearestZone, ztlZones]);
+  }, [map, onAlert, siren, alertCount, onNearestZone, onPositionUpdate, ztlZones]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -168,6 +170,7 @@ export default function ZtlMap() {
   const [polygonsRendering, setPolygonsRendering] = useState(false);
   const [ztlZones, setZtlZones] = useState<any>(null);
   const [nearestZone, setNearestZone] = useState<ZoneFeature | null>(null);
+  const [gpsPosition, setGpsPosition] = useState<[number, number] | null>(null);
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
@@ -192,6 +195,10 @@ export default function ZtlMap() {
   const handleNearestZone = (zone: ZoneFeature | null) => {
     console.log("✅ ZtlMap: Nearest zone updated:", zone?.properties.name || "null");
     setNearestZone(zone);
+  };
+
+  const handlePositionUpdate = (position: [number, number] | null) => {
+    setGpsPosition(position);
   };
 
   useEffect(() => {
@@ -412,6 +419,9 @@ export default function ZtlMap() {
         {polygonsRendering && <div className="text-blue-400">⏳ Polygons rendering...</div>}
         <div className="h-px bg-gray-700 my-2"></div>
         {nearestZone && <div className="text-green-400">✅ Nearest zone: {nearestZone.properties.name}</div>}
+        <div className="h-px bg-gray-700 my-2"></div>
+        {gpsPosition && <div className="text-cyan-400">✅ GPS active: {gpsPosition[0].toFixed(4)}, {gpsPosition[1].toFixed(4)}</div>}
+        {!gpsPosition && <div className="text-gray-400">⚠️ GPS not active</div>}
       </div>
 
       {/* ZONES ERROR ALERT WITH ACTIONS */}
@@ -688,6 +698,7 @@ export default function ZtlMap() {
             onAlert={handleAlert}
             alertSound={alertSound}
             onNearestZone={handleNearestZone}
+            onPositionUpdate={handlePositionUpdate}
             ztlZones={ztlZones}
           />
           {ztlZones.features.map((f: ZoneFeature, i: number) => {
