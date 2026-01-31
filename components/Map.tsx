@@ -56,21 +56,21 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
 
         const pt = turf.point([longitude, latitude]);
 
-        let nearest: ZoneFeature | null = null;
+        let nearest: any = null;
         let minDistance = Infinity;
 
-        ztlZones.features.forEach((zone: ZoneFeature | any) => {
+        for (const zone of ztlZones.features) {
           const polygon = turf.polygon(zone.geometry.coordinates);
           const distance = turf.pointToPolygonDistance(pt, polygon);
           if (distance < minDistance && distance < 1) {
             minDistance = distance;
             nearest = zone;
           }
-        });
+        }
 
-        if (nearest) {
-          console.log("✅ LocationMarker: Nearest zone found:", (nearest as any).properties.name);
-          onNearestZone(nearest as ZoneFeature);
+        if (nearest && nearest.properties) {
+          console.log("✅ LocationMarker: Nearest zone found:", nearest.properties.name);
+          onNearestZone(nearest);
         }
 
         const distInMeters = minDistance * 1000;
@@ -79,7 +79,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
         const approaching100m = minDistance < 0.1;
         const insideZone = minDistance < 0.02;
 
-        const activeViolations = ztlZones.features.filter((zone: ZoneFeature) => {
+        const activeViolations = ztlZones.features.filter((zone: any) => {
           const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
           const isActiveNow = isZoneActive(zone.properties.name);
           return isInside && isActiveNow;
