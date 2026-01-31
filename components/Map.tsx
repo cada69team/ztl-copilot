@@ -738,10 +738,14 @@ export default function ZtlMap() {
             const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
             const fillOpacity = isNearest ? 0.5 : 0.2;
 
+            // GeoJSON uses [lng, lat] but React-leaflet expects [lat, lng]
+            // Also need to unwrap the nested array structure
+            const positions = f.geometry.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+
             return (
               <Polygon
                 key={i}
-                positions={f.geometry.coordinates}
+                positions={positions}
                 eventHandlers={{ click: () => handleZoneClick(f) }}
                 color={color}
                 fillColor={fillColor}
