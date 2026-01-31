@@ -35,7 +35,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
-  const watcherStartedRef = useRef(false);
+  const watcherIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
@@ -55,14 +55,23 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
 
   useEffect(() => {
     if (!map || !ztlZones) return;
-    if (watcherStartedRef.current) return; // Prevent duplicate watchers
+
+    // Clear any existing watcher before starting a new one
+    if (watcherIdRef.current !== null) {
+      console.log("🧹 Clearing existing GPS watcher:", watcherIdRef.current);
+      navigator.geolocation.clearWatch(watcherIdRef.current);
+      watcherIdRef.current = null;
+    }
 
     console.log("✅ LocationMarker: Starting GPS watcher");
-    watcherStartedRef.current = true;
 
-    const watcher = navigator.geolocation.watchPosition(
+    const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
+        // Store watcher ID
+        if (typeof watchId === 'number') {
+          watcherIdRef.current = watchId;
+        }
         setPosition([latitude, longitude]);
         onPositionUpdate([latitude, longitude]);
 
@@ -179,8 +188,12 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
     );
 
     return () => {
-      navigator.geolocation.clearWatch(watcher);
-      watcherStartedRef.current = false;
+      const id = watcherIdRef.current;
+      if (id !== null) {
+        console.log("🧹 Cleaning up GPS watcher:", id);
+        navigator.geolocation.clearWatch(id);
+        watcherIdRef.current = null;
+      }
     };
   }, [map, onAlert, siren, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
 
