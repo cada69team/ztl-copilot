@@ -1,7 +1,7 @@
 "use client"
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap, ZoomControl } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
@@ -215,20 +215,20 @@ export default function ZtlMap() {
   const [center, setCenter] = useState<[number, number]>([45.4642, 9.1900]);
   const [zoom, setZoom] = useState(13);
 
-  const handleNearestZone = (zone: ZoneFeature | null) => {
+  const handleNearestZone = useCallback((zone: ZoneFeature | null) => {
     console.log("✅ ZtlMap: Nearest zone updated:", zone?.properties.name || "null");
     setNearestZone(zone);
-  };
+  }, []);
 
-  const handlePositionUpdate = (position: [number, number] | null) => {
+  const handlePositionUpdate = useCallback((position: [number, number] | null) => {
     setGpsPosition(position);
-  };
+  }, []);
 
-  const handleAlertIncrement = () => {
+  const handleAlertIncrement = useCallback(() => {
     const newCount = alertCount + 1;
     setAlertCount(newCount);
     localStorage.setItem('ztl-alert-count', newCount.toString());
-  };
+  }, [alertCount]);
 
   useEffect(() => {
     console.log("🚨 ZtlMap component mounted");
@@ -314,14 +314,14 @@ export default function ZtlMap() {
     }
   }, [isInstalled, showInstallPrompt, showDelayedPrompt, showSoundSettings]);
 
-  const handleAlert = (active: boolean, message = "") => {
+  const handleAlert = useCallback((active: boolean, message = "") => {
     setIsAlert(active);
     setAlertMessage(message);
 
     if (alertCount >= 3 && !showUpgradePrompt) {
       setShowUpgradePrompt(true);
     }
-  };
+  }, [alertCount, showUpgradePrompt]);
 
   const handleMapReady = () => {
     console.log("✅ Map ready!");
