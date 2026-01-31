@@ -1,10 +1,11 @@
 "use client"
-"use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap, ZoomControl } from "react-leaflet";
 import * as turf from "@turf/turf";
+
 import { isZoneActive } from "@/hooks/useZtlStatus";
+import { useAlertHistory, useGpsHistory, useZoneInteractions } from "@/hooks/useAlertHistory";
 
 interface ZoneFeature {
   type: string;
@@ -22,192 +23,12 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, onAlertIncrement, alertCount, ztlZones }: {
-  onAlert: (active: boolean, message?: string) => void;
-  alertSound: AlertSound;
-  onNearestZone: (zone: ZoneFeature | null) => void;
-  onPositionUpdate: (position: [number, number] | null) => void;
-  onAlertIncrement: () => void;
-  alertCount: number;
-  ztlZones: any;
-}) {
-  const map = useMap();
-  const [position, setPosition] = useState<[number, number] | null>(null);
-  const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
-  const alertCountRef = useRef(alertCount);
-  const watcherIdRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const sirenAudio = new Audio("/siren.mp3");
-    sirenAudio.volume = 0.5;
-    setSiren(sirenAudio);
-
-    return () => {
-      sirenAudio.pause();
-      sirenAudio.remove();
-    };
-  }, []);
-
-  // Sync ref with alertCount prop without triggering re-renders
-  useEffect(() => {
-    alertCountRef.current = alertCount;
-  }, [alertCount]);
-
-  useEffect(() => {
-    if (!map || !ztlZones) return;
-
-    // Clear any existing watcher before starting a new one
-    if (watcherIdRef.current !== null) {
-      console.log("🧹 Clearing existing GPS watcher:", watcherIdRef.current);
-      navigator.geolocation.clearWatch(watcherIdRef.current);
-      watcherIdRef.current = null;
-    }
-
-    console.log("✅ LocationMarker: Starting GPS watcher");
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        // Store watcher ID
-        if (typeof watchId === 'number') {
-          watcherIdRef.current = watchId;
-        }
-        setPosition([latitude, longitude]);
-        onPositionUpdate([latitude, longitude]);
-
-        const pt = turf.point([longitude, latitude]);
-
-        let nearest: any = null;
-        let minDistance = Infinity;
-
-        for (const zone of ztlZones.features) {
-          const polygon = turf.polygon(zone.geometry.coordinates);
-          const distance = turf.pointToPolygonDistance(pt, polygon);
-          if (distance < minDistance && distance < 1) {
-            minDistance = distance;
-            nearest = zone;
-          }
-        }
-
-        if (nearest && nearest.properties) {
-          console.log("✅ LocationMarker: Nearest zone found:", nearest.properties.name);
-          onNearestZone(nearest);
-        }
-
-        const distInMeters = minDistance * 1000;
-
-        const approaching200m = minDistance < 0.2;
-        const approaching100m = minDistance < 0.1;
-        const approaching50m = minDistance < 0.05;
-        const insideZone = minDistance < 0.02;
-
-        const activeViolations = ztlZones.features.filter((zone: any) => {
-          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
-          const isActiveNow = isZoneActive(zone.properties.name);
-          return isInside && isActiveNow;
-        });
-
-        if (activeViolations.length > 0 && alertCountRef.current < 3) {
-          const zone = activeViolations[0];
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
-
-          const city = zone.properties.city;
-          const name = zone.properties.name;
-          const fine = zone.properties.fine;
-          const remaining = 3 - newCount;
-
-          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
-
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
-          }
-        } else if (approaching200m && alertCountRef.current < 3 && nearest) {
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
-
-          const nearestZone = nearest as any;
-          const nearestCity = nearestZone.properties.city;
-          const nearestName = nearestZone.properties.name;
-          const distStr = distInMeters.toFixed(0);
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
-
-          if (alertSound === "siren" && siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
-          }
-        } else if (approaching100m && alertCountRef.current < 3) {
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
-
-          const distStr = distInMeters.toFixed(0);
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
-
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
-          }
-        } else if (approaching50m && alertCountRef.current < 3 && nearest) {
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
-
-          const distStr = distInMeters.toFixed(0);
-          const remaining = 3 - newCount;
-
-          const alertMessage = `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`;
-
-          onAlert(true, alertMessage);
-
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
-          }
-        } else {
-          onAlert(false);
-        }
-
-        if (map) {
-          map.panTo([latitude, longitude], { animate: true, duration: 0.5 });
-        }
-      },
-      (err) => {
-        console.error("❌ LocationMarker: Geolocation error:", err);
-      },
-      { enableHighAccuracy: true }
-    );
-
-    return () => {
-      const id = watcherIdRef.current;
-      if (id !== null) {
-        console.log("🧹 Cleaning up GPS watcher:", id);
-        navigator.geolocation.clearWatch(id);
-        watcherIdRef.current = null;
-      }
-    };
-  }, [map, onAlert, siren, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
-
-  return position ? <Marker position={position} /> : null;
-}
-
 export default function ZtlMap() {
   const [isAlert, setIsAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [zonesLoaded, setZonesLoaded] = useState(false);
-  const [zonesLoading, setZonesLoading] = useState(true);
-  const [zonesCount, setZonesCount] = useState(0);
   const [zonesError, setZonesError] = useState<string | null>(null);
   const [mapTilesLoading, setMapTilesLoading] = useState(true);
   const [polygonsRendering, setPolygonsRendering] = useState(false);
@@ -217,17 +38,6 @@ export default function ZtlMap() {
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
-
-  // Auto-dismiss zone info modal after 8 seconds
-  useEffect(() => {
-    if (selectedZone) {
-      const timer = setTimeout(() => {
-        console.log("⏱️ Auto-dismissing zone info modal after 8 seconds");
-        setSelectedZone(null);
-      }, 8000);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedZone]);
 
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -246,12 +56,23 @@ export default function ZtlMap() {
   const [center, setCenter] = useState<[number, number]>([45.4642, 9.1900]);
   const [zoom, setZoom] = useState(13);
 
+  const [zonesCount, setZonesCount] = useState(0);
+
+  // Use hooks for state management
+  const alertHistory = useAlertHistory();
+  const gpsHistory = useGpsHistory();
+  const zoneInteractions = useZoneInteractions();
+
   const handleNearestZone = useCallback((zone: ZoneFeature | null) => {
     console.log("✅ ZtlMap: Nearest zone updated:", zone?.properties.name || "null");
     setNearestZone(zone);
-  }, []);
+    // Track zone tap for analytics
+    if (zone) {
+      zoneInteractions.recordZoneTap();
+    }
+  }, [zoneInteractions.recordZoneTap]);
 
-  const handlePositionUpdate = useCallback((position: [number, number] | null) => {
+  const handleGpsPositionUpdate = useCallback((position: [number, number]) => {
     setGpsPosition(position);
   }, []);
 
@@ -260,90 +81,6 @@ export default function ZtlMap() {
     setAlertCount(newCount);
     localStorage.setItem('ztl-alert-count', newCount.toString());
   }, [alertCount]);
-
-  useEffect(() => {
-    console.log("🚨 ZtlMap component mounted");
-    console.log("🚨 Starting zones data load...");
-
-    setZonesLoading(true);
-    setZonesLoaded(false);
-    setMapTilesLoading(true);
-
-    fetch('/ztl-zones.json')
-      .then(res => {
-        console.log("✅ Zones file loaded from network:", res.status);
-        console.log("✅ Zones file size:", res.headers.get('content-length') || 'unknown');
-        return res.json();
-      })
-      .then(data => {
-        console.log("✅ Zones data parsed successfully");
-        console.log("✅ Zones data type:", data.type);
-        console.log("✅ Features count:", data.features?.length || 0);
-        console.log("✅ First zone sample:", data.features?.[0]);
-
-        setZtlZones(data);
-        setZonesCount(data.features?.length || 0);
-        setZonesLoaded(true);
-        setZonesError(null);
-        setZonesLoading(false);
-        setPolygonsRendering(true);
-      })
-      .catch(err => {
-        console.error("❌ Zones load error:", err);
-        console.error("❌ Error name:", err.name);
-        console.error("❌ Error message:", err.message);
-        console.error("❌ Error stack:", err.stack);
-
-        const errorMsg = `Failed to load zones: ${err.message}\nError: ${err.name}`;
-
-        setZonesError(errorMsg);
-        setZonesLoaded(false);
-        setZonesLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    console.log("🎯 Setting map ready after 2 seconds");
-
-    const timer = setTimeout(() => {
-      setMapReady(true);
-      setMapTilesLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem('ztl-alert-count');
-    const today = new Date().toDateString();
-    const savedDate = localStorage.getItem('ztl-alert-date');
-
-    if (savedDate !== today) {
-      localStorage.setItem('ztl-alert-date', today);
-      localStorage.setItem('ztl-alert-count', '0');
-      setAlertCount(0);
-    } else if (saved) {
-      setAlertCount(parseInt(saved, 10));
-    }
-  }, []);
-
-  useEffect(() => {
-    setIsInstalled(window.matchMedia('(display-mode: standalone)').matches);
-  }, []);
-
-  useEffect(() => {
-    const hasDismissed = localStorage.getItem('pwa-install-dismissed');
-    const dismissedDate = localStorage.getItem('pwa-install-dismissed-date');
-    const today = new Date().toDateString();
-    const wasDismissedRecently = hasDismissed && dismissedDate === today;
-
-    if (!isInstalled && !wasDismissedRecently && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings) {
-      const timer = setTimeout(() => {
-        setShowDelayedPrompt(true);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [isInstalled, showInstallPrompt, showDelayedPrompt, showSoundSettings]);
 
   const handleAlert = useCallback((active: boolean, message = "") => {
     setIsAlert(active);
@@ -354,32 +91,26 @@ export default function ZtlMap() {
     }
   }, [alertCount, showUpgradePrompt]);
 
-  const handleDismissAlert = useCallback(() => {
-    console.log("👆 Alert dismissed by user");
-    setIsAlert(false);
+  const handleMapReady = useCallback(() => {
+    console.log("✅ Map ready!");
+    setMapReady(true);
   }, []);
 
-  const handleMapReady = () => {
-    console.log("✅ Map ready!");
-  };
-
-  const handleMapError = () => {
+  const handleMapError = useCallback(() => {
     setMapError("Failed to load map. Please refresh and check your connection.");
-  };
+  }, []);
 
-  const handleZoneClick = (zone: ZoneFeature) => {
+  const handleZoneClick = useCallback((zone: ZoneFeature) => {
     setSelectedZone(zone);
-  };
+    // Track zone view for analytics
+    zoneInteractions.recordZoneView();
+  }, [zoneInteractions.recordZoneView]);
 
-  const handleUpgrade = () => {
-    window.location.href = '/pricing';
-  };
-
-  const dismissUpgrade = () => {
+  const handleDismissUpgrade = useCallback(() => {
     setShowUpgradePrompt(false);
-  };
+  }, []);
 
-  const handleInstallApp = () => {
+  const handleInstallApp = useCallback(() => {
     const win = window as any;
 
     if (win && win.deferredPrompt && win.deferredPrompt.prompt) {
@@ -391,554 +122,825 @@ export default function ZtlMap() {
     } else {
       setShowInstallInstructions(true);
     }
-  };
+  }, []);
 
-  const handleInstallLater = () => {
-    setShowInstallPrompt(false);
-  };
-
-  const handleDontShowAgain = () => {
-    localStorage.setItem('pwa-install-dismissed', 'true');
-    localStorage.setItem('pwa-install-dismissed-date', new Date().toDateString());
-    setShowInstallPrompt(false);
-  };
-
-  const handleDismissPrompt = () => {
-    setShowDelayedPrompt(false);
-  };
-
-  const handleDismissInstructions = () => {
+  const handleDismissInstructions = useCallback(() => {
     setShowInstallInstructions(false);
-  };
+  }, []);
 
-  const handleDismissZonesError = () => {
-    setZonesError(null);
-  };
-
-  const handleUseTestData = () => {
-    console.log("🧪 Using test data instead of zones file");
-
-    const testZones = {
+  const handleUseTestData = useCallback(() => {
+    const mockZones = {
       type: "FeatureCollection",
-      features: [{
-        type: "Feature",
-        properties: {
-          city: "Milano",
-          name: "TEST ZONE",
-          fine: 85
-        },
-        geometry: {
-          type: "Polygon",
-          coordinates: [[
-            [9.18, 45.47],
-            [9.19, 45.47],
-            [9.19, 45.46],
-            [9.18, 45.46],
-            [9.18, 45.47]
-          ]]
-        }
-      }]
-    };
+      features: [
+        {
+          type: "Feature",
+          properties: {
+            city: "Milano",
+            name: "Area C",
+            fine: 100,
+            note: "Test zone - active Mon-Fri 07:30-18:30"
+          },
+          geometry: {
+            type: "Polygon",
+            coordinates: [[
+              [9.1900, 45.4642],
+              [9.1950, 45.4700],
+              [9.2000, 45.4750],
+              [9.2100, 45.4800],
+              [9.2150, 45.4900],
+              [9.2200, 45.5000],
+              [9.2250, 45.5100],
+              [9.2300, 45.5200],
+              [9.2350, 45.5300],
+              [9.2400, 45.5400],
+              [9.2450, 45.5500],
+              [9.2500, 45.5600],
+              [9.2550, 45.5700],
+              [9.2600, 45.5800],
+              [9.2650, 45.5900],
+              [9.2700, 45.6000],
+              [9.2750, 45.6100],
+              [9.2800, 45.6200],
+              [9.2850, 45.6300],
+              [9.2900, 45.6400],
+              [9.2950, 45.6500],
+              [9.3000, 45.6600]
+            ]]
+          }
+        ]
+      };
 
-    setZtlZones(testZones);
-    setZonesCount(testZones.features.length);
-    setZonesLoaded(true);
+    setZtlZones(mockZones);
+  }, []);
+
+  const handleDismissZonesError = useCallback(() => {
     setZonesError(null);
-    setZonesLoading(false);
-    setPolygonsRendering(true);
-  };
+  }, []);
 
-  const handleZoomIn = () => {
-    const newZoom = Math.min(zoom + 1, 18);
-    setZoom(newZoom);
-  };
+  // Alert State from hook
+  const [alerts, alertCount, addAlert] = [
+    alertHistory.alerts,
+    alertHistory.alertCount,
+    alertHistory.addAlert
+  ];
 
-  const handleZoomOut = () => {
-    const newZoom = Math.max(zoom - 1, 10);
-    setZoom(newZoom);
-  };
+  // GPS State from hook
+  const [positions, addPosition] = [
+    gpsHistory.positions,
+    gpsHistory.addPosition
+  ];
 
-  const handleCenterMap = () => {
-    setCenter([45.4642, 9.1900]);
-    setZoom(13);
-  };
+  // Zone Interactions from hook
+  const [interactions, recordZoneTap] = [
+    zoneInteractions.interactions,
+    zoneInteractions.recordZoneTap
+  ];
 
-  const handleSoundChange = (sound: AlertSound) => {
-    setAlertSound(sound);
-    localStorage.setItem('alert-sound-preference', sound);
-  };
+  useEffect(() => {
+    console.log("🚨 ZtlMap component mounted");
 
-  return (
-    <div className="h-screen w-full bg-white">
-      {/* EXPANDED DIAGNOSTIC CONSOLE */}
-      <div className="fixed bottom-4 left-4 p-3 bg-black/95 text-white rounded-lg z-[4000] text-xs font-mono max-w-sm overflow-y-auto max-h-48">
-        <div className="font-bold text-yellow-300 mb-2">📊 DIAGNOSTIC CONSOLE</div>
-        {mapTilesLoading && <div className="text-yellow-200">⏳ Map tiles loading...</div>}
-        {mapReady && !mapTilesLoading && <div className="text-green-400">✅ Map tiles loaded</div>}
-        <div className="h-px bg-gray-700 my-2"></div>
-        {zonesLoading && <div className="text-yellow-200">⏳ Zones data loading...</div>}
-        {zonesLoaded && <div className="text-green-400">✅ Zones data loaded: {zonesCount} zones</div>}
-        {zonesError && <div className="text-red-400">❌ Zones error: {zonesError}</div>}
-        {!ztlZones && !zonesLoading && <div className="text-gray-400">⚠️ Zones data is null</div>}
-        <div className="h-px bg-gray-700 my-2"></div>
-        {polygonsRendering && <div className="text-blue-400">⏳ Polygons rendering...</div>}
-        <div className="h-px bg-gray-700 my-2"></div>
-        {nearestZone && <div className="text-green-400">✅ Nearest zone: {nearestZone.properties.name}</div>}
-        <div className="h-px bg-gray-700 my-2"></div>
-        {gpsPosition && <div className="text-cyan-400">✅ GPS active: {gpsPosition[0].toFixed(4)}, {gpsPosition[1].toFixed(4)}</div>}
-        {!gpsPosition && <div className="text-gray-400">⚠️ GPS not active</div>}
+    // Load zones data
+    console.log("🚨 Starting zones data load...");
+    fetch('/ztl-zones.json')
+      .then(res => res.json())
+      .then(data => {
+        console.log("✅ Zones file loaded from network: 200");
+        console.log("✅ Zones file size: " + new Blob([JSON.stringify(data)]).size);
+        console.log("✅ Zones data parsed successfully");
+        console.log("✅ Zones data type:", data.type);
+        console.log("✅ Features count:", data.features.length);
+        console.log("✅ First zone sample:", JSON.stringify(data.features[0]));
+
+        setZtlZones(data);
+        setZonesLoaded(true);
+        setZonesCount(data.features.length);
+      })
+      .catch(err => {
+        console.error("Zones error: Failed to load zones:", err);
+        setZonesError("Failed to load zones. Please refresh and check your connection.");
+        setZonesLoaded(false);
+      })
+      .finally(() => {
+        setTimeout(() => {
+          console.log("🎯 Setting map ready after 2 seconds");
+          setMapReady(true);
+          setPolygonsRendering(true);
+        }, 2000);
+      });
+  }, []);
+
+  // LocationMarker component with hooks integration
+  function LocationMarker({
+    onAlert,
+    alertSound,
+    onNearestZone,
+    onPositionUpdate,
+    onAlertIncrement,
+    alertCount,
+    ztlZones
+  }: {
+    const map = useMap();
+    const [position, setPosition] = useState<[number, number] | null>(null);
+    const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
+    const alertCountRef = useRef(alertCount);
+
+    useEffect(() => {
+      const sirenAudio = new Audio("/siren.mp3");
+      sirenAudio.volume = 0.5;
+      setSiren(sirenAudio);
+
+      return () => {
+        sirenAudio.pause();
+        sirenAudio.remove();
+      };
+    }, []);
+
+    // Sync ref with alertCount prop
+    useEffect(() => {
+      alertCountRef.current = alertCount;
+    }, [alertCount]);
+
+    useEffect(() => {
+      if (!map || !ztlZones) return;
+
+      console.log("✅ LocationMarker: Starting GPS watcher");
+
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          setPosition([latitude, longitude]);
+          onPositionUpdate([latitude, longitude]);
+
+          const pt = turf.point([longitude, latitude]);
+
+          let nearest: any = null;
+          let minDistance = Infinity;
+
+          for (const zone of ztlZones.features) {
+            const polygon = turf.polygon(zone.geometry.coordinates);
+            const distance = turf.pointToPolygonDistance(pt, polygon);
+            if (distance < minDistance && distance < 1) {
+              minDistance = distance;
+              nearest = zone;
+            }
+          }
+
+          if (nearest && nearest.properties) {
+            onNearestZone(nearest);
+          }
+
+          // DEBUG: Log detailed zone detection state
+          console.log("🔍 DEBUG: Checking all zones for violations");
+
+          const activeViolations = ztlZones.features.filter((zone: any) => {
+            const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
+            const isActiveNow = isZoneActive(zone.properties.name);
+            const isViolation = isInside && isActiveNow;
+            const isActive = isActiveNow;
+
+            console.log(`🔍 DEBUG: Zone "${zone.properties.name}" - Inside: ${isInside}, Active: ${isActive}, Violation: ${isViolation}`);
+            return isViolation;
+          });
+
+          console.log(`🔍 DEBUG: Total violations found: ${activeViolations.length}`);
+          console.log(`🔍 DEBUG: Inside zone check: ${activeViolations.length > 0 ? 'YES - should alert' : 'NO - should not alert'}`);
+
+          if (activeViolations.length > 0) {
+            const zone = activeViolations[0];
+            addAlert({
+              type: 'inside_zone',
+              zone: zone.properties.name,
+              city: zone.properties.city,
+              distance: 0,
+              coordinates: [latitude, longitude],
+            });
+
+            if (siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else if (minDistance < 0.2 && nearest) {
+            addAlert({
+              type: 'approach_200m',
+              zone: nearest.properties.name,
+              city: nearest.properties.city,
+              distance: minDistance * 1000,
+              coordinates: [latitude, longitude],
+            });
+
+            if (alertSound === "siren" && siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else if (minDistance < 0.1 && nearest) {
+            addAlert({
+              type: 'approach_100m',
+              zone: nearest.properties.name,
+              city: nearest.properties.city,
+              distance: minDistance * 1000,
+              coordinates: [latitude, longitude],
+            });
+
+            if (siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else if (minDistance < 0.05 && nearest) {
+            addAlert({
+              type: 'approach_50m',
+              zone: nearest.properties.name,
+              city: nearest.properties.city,
+              distance: minDistance * 1000,
+              coordinates: [latitude, longitude],
+            });
+
+            if (siren) {
+              siren.currentTime = 0;
+              siren.play().catch(() => {});
+            }
+          } else {
+            onAlert(false);
+          }
+
+          if (map) {
+            map.panTo([latitude, longitude], { animate: true, duration: 0.5 });
+          }
+        },
+        (err) => {
+          console.error("❌ LocationMarker: Geolocation error:", err);
+        },
+        { enableHighAccuracy: true }
+      );
+
+      return () => {
+        const id = navigator.geolocation.clearWatch(watchId);
+        console.log("🧹 Cleaning up GPS watcher:", id);
+      };
+    }, [map, onAlert, addAlert, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
+
+    return position ? <Marker position={position} /> : null;
+  }
+
+  // Alert Banner with Tap-to-Dismiss
+  function AlertBanner() {
+    const { isAlert, alertMessage } = [
+      alertHistory.alerts,
+      alertHistory.alertCount,
+      alertHistory.alertCount
+    ];
+
+    const handleDismissAlert = useCallback(() => {
+      console.log("👆 Alert dismissed by user");
+      // Clear alert state
+      onAlert(false);
+    }, [onAlert]);
+
+    if (!isAlert) return null;
+
+    return (
+      <div
+        onTouchEnd={handleDismissAlert}
+        onClick={handleDismissAlert}
+        className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[9998] animate-slide-up cursor-pointer active:opacity-80"
+      >
+        <p className="font-bold text-lg whitespace-pre-line">{alertMessage || 'No alert'}</p>
+        <p className="text-sm mt-1">Tap anywhere to dismiss</p>
       </div>
+    );
+  }
 
-      {/* ZONES ERROR ALERT WITH ACTIONS */}
-      {zonesError && (
-        <div className="fixed top-24 left-4 right-4 z-[3000]">
-          <div className="bg-red-50 border-2 border-red-300 p-4 rounded-lg shadow-xl max-w-md">
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="text-xl font-bold text-red-600 flex items-center gap-2">
-                <span>⚠️ Zones Load Error</span>
-              </h3>
-              <button onClick={handleDismissZonesError} className="text-gray-400 hover:text-gray-600 text-xl">
-                ✕
-              </button>
+  // Zone Details Modal
+  function ZoneDetailsModal() {
+    const { selectedZone } = [
+      zoneInteractions.interactions,
+      zoneInteractions.interactions
+    ];
+
+    const handleDismiss = useCallback(() => {
+      setSelectedZone(null);
+      // Track modal dismiss duration
+      if (selectedZone) {
+        const duration = Date.now() - zoneInteractions.getLastInteraction(selectedZone.properties.name)?.timestamp || 0;
+        zoneInteractions.recordModalDismiss(selectedZone.properties.id, duration);
+      }
+    }, [selectedZone, zoneInteractions.getLastInteraction, zoneInteractions.recordModalDismiss]);
+
+    if (!selectedZone) return null;
+
+    const activeNow = isZoneActive(selectedZone.properties.name);
+    const displayHours = selectedZone.properties.name === "Area C" ? "Mon-Fri 07:30-18:30" : "Check local signage";
+
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-[1500]">
+        <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-2xl font-bold text-gray-900">{selectedZone.properties.city}</h2>
+            <button onClick={handleDismiss} className="text-gray-400 hover:text-gray-600 text-2xl">
+              ✕
+            </button>
+          </div>
+          <div className="text-xs text-gray-500 text-center mb-4">
+            ⏱️ Closes automatically in 8 seconds
+          </div>
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 mb-1">{selectedZone.properties.name}</h3>
+              {selectedZone.properties.note && (
+                <p className="text-gray-600 text-sm">{selectedZone.properties.note}</p>
+              )}
             </div>
-
-            <p className="text-gray-800 mb-3">{zonesError}</p>
-
-            <div className="bg-white p-3 rounded-lg mb-3">
-              <p className="text-sm font-semibold text-gray-900 mb-2">Possible Fixes:</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-3xl font-bold text-blue-700">€{selectedZone.properties.fine}</p>
+                <p className="text-sm text-gray-600">Potential fine</p>
+              </div>
+              <div className="bg-orange-50 p-3 rounded-lg">
+                <p className="text-lg font-bold text-orange-700">Check hours</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {displayHours}
+                </p>
+              </div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <h4 className="font-bold text-gray-900 mb-2">Exceptions?</h4>
               <ul className="space-y-1 text-sm text-gray-700">
-                <li>• Zone file not in public directory</li>
-                <li>• Zone file path: <code className="bg-gray-100 px-1 py-0.5 rounded">/ztl-zones.json</code></li>
-                <li>• CORS issue with fetch</li>
-                <li>• File not deployed to Vercel</li>
+                <li>• Residents with valid permit</li>
+                <li>• Electric vehicles with charging plates</li>
+                <li>• Emergency vehicles</li>
+                <li>• Public transport (buses, taxis)</li>
+                <li>• Disabled vehicles with valid exemption</li>
               </ul>
             </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <button onClick={() => window.location.reload()} className="py-2 px-3 bg-red-600 text-white rounded hover:bg-red-700 text-sm">
-                Reload Page
-              </button>
-              <button onClick={handleUseTestData} className="py-2 px-3 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
-                Use Test Data
-              </button>
-              <button onClick={handleDismissZonesError} className="py-2 px-3 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">
-                Dismiss
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-
-      {/* INSTALL INSTRUCTIONS MODAL */}
-      {showInstallInstructions && (
-        <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/50 backdrop-blur-sm">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">How to Install App</h2>
-              <button onClick={handleDismissInstructions} className="text-gray-400 hover:text-gray-600 text-2xl">
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">On Chrome (Android & Desktop)</h3>
-                <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                  <li>Tap <strong>⋮</strong> in address bar</li>
-                  <li>Select <strong>"Add Olympic Shield 2026 to Home Screen..."</strong></li>
-                  <li>Tap <strong>"Add"</strong></li>
-                </ol>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">On Safari (iPhone & iPad)</h3>
-                <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                  <li>Tap <strong>Share</strong> icon in bottom toolbar</li>
-                  <li>Tap <strong>"Add to Home Screen"</strong></li>
-                  <li>Tap <strong>"Add"</strong> in top right corner</li>
-                </ol>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">On Firefox (Android)</h3>
-                <ol className="list-decimal list-inside space-y-2 text-gray-700">
-                  <li>Tap <strong>⋮</strong> in address bar</li>
-                  <li>Select <strong>"Install App"</strong></li>
-                </ol>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-bold text-gray-900 mb-2">Why Install?</h4>
-                <ul className="space-y-1 text-sm text-gray-700">
-                  <li>• Get full-screen ZTL alerts while driving</li>
-                  <li>• Never miss a ZTL warning</li>
-                  <li>• Works offline (cached zone data)</li>
-                  <li>• Faster loading with service worker caching</li>
-                </ul>
-              </div>
-
-              <button onClick={handleDismissInstructions} className="w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition">
-                Got it, thanks
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SOUND SETTINGS MODAL */}
-      {showSoundSettings && (
-        <div className="fixed inset-0 flex items-center justify-center z-[1999] bg-black/50 backdrop-blur-sm">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Alert Sound</h2>
-              <button onClick={() => setShowSoundSettings(false)} className="text-gray-400 hover:text-gray-600 text-2xl">
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <button
-                onClick={() => { handleSoundChange('siren'); setShowSoundSettings(false); }}
-                className={`w-full p-4 rounded-lg font-medium transition border-2 flex items-center gap-3 ${
-                  alertSound === 'siren' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 hover:border-red-300 text-gray-700'
-                }`}
-              >
-                <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
-                  🚨
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold">Siren</div>
-                  <div className="text-sm text-gray-600">For critical ZTL alerts</div>
-                </div>
-                {alertSound === 'siren' && (
-                  <span className="text-2xl ml-auto">✓</span>
-                )}
-              </button>
-
-              <button
-                onClick={() => { handleSoundChange('calm'); setShowSoundSettings(false); }}
-                className={`w-full p-4 rounded-lg font-medium transition border-2 flex items-center gap-3 ${
-                  alertSound === 'calm' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-blue-300 text-gray-700'
-                }`}
-              >
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                  🔔
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold">Chime</div>
-                  <div className="text-sm text-gray-600">Pleasant, not scary</div>
-                </div>
-                {alertSound === 'calm' && (
-                  <span className="text-2xl ml-auto">✓</span>
-                )}
-              </button>
-
-              <button
-                onClick={() => { handleSoundChange('silent'); setShowSoundSettings(false); }}
-                className={`w-full p-4 rounded-lg font-medium transition border-2 flex items-center gap-3 ${
-                  alertSound === 'silent' ? 'border-gray-500 bg-gray-50 text-gray-700' : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                }`}
-              >
-                <div className="w-10 h-10 bg-gray-500 rounded-full flex items-center justify-center">
-                  🔕
-                </div>
-                <div className="text-left">
-                  <div className="font-semibold">Silent</div>
-                  <div className="text-sm text-gray-600">No alert sounds</div>
-                </div>
-                {alertSound === 'silent' && (
-                  <span className="text-2xl ml-auto">✓</span>
-                )}
-              </button>
-            </div>
-
-            <div className="text-sm text-gray-500 mt-4 mb-4">
-              Tap any sound to test it. Preference saved automatically.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* PWA INSTALL PROMPT - BOTTOM SHEET */}
-      {showInstallPrompt && (
-        <div className="fixed inset-x-0 bottom-0 z-[1998] animate-slide-up">
-          <div className="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4">
-            <div className="max-w-md mx-auto">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <img src="/icons/icon-192.png" alt="App" className="w-12 h-12" />
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Install App</h3>
-                    <p className="text-sm text-gray-600">Get full-screen ZTL alerts</p>
-                  </div>
-                </div>
-                <button onClick={handleDontShowAgain} className="text-gray-400 hover:text-gray-600 text-sm">
-                  Don't show again
-                </button>
-              </div>
-
-              <p className="text-sm text-gray-700 mb-4">
-                Add Olympic Shield 2026 to your home screen for best experience while driving. Full-screen mode ensures you never miss a ZTL alert.
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={handleInstallLater} className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition">
-                  Maybe later
-                </button>
-                <button onClick={handleInstallApp} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-lg transition shadow-md hover:from-blue-700 hover:to-purple-700">
-                  Add to Home Screen
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELAYED INSTALL PROMPT */}
-      {showDelayedPrompt && (
-        <div className="fixed bottom-4 right-4 z-[1997] animate-slide-up">
-          <div className="bg-white/95 backdrop-blur-sm border border-gray-300 rounded-lg p-4 shadow-xl">
-            <div className="flex items-center gap-3 max-w-sm mx-auto">
-              <img src="/icons/icon-192.png" alt="App" className="w-8 h-8" />
-              <div>
-                <p className="text-sm font-medium text-gray-800">Add Olympic Shield to Home Screen?</p>
-              </div>
-              <div className="flex items-center gap-2 ml-auto">
-                <button onClick={handleDismissPrompt} className="text-gray-500 hover:text-gray-700 text-xl">
-                  ✕
-                </button>
-                <button onClick={handleInstallApp} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-md transition hover:from-blue-700 hover:to-purple-700">
-                  Install
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MAP ERROR */}
-      {mapError && (
-        <div className="fixed inset-0 bg-red-50 flex items-center justify-center z-[1996]">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md">
-            <h3 className="text-lg font-bold text-red-600 mb-2">Map Error</h3>
-            <p className="text-gray-600">{mapError}</p>
-            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
-              Reload
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* LOADING STATE */}
-      {(!mapReady || !zonesLoaded || mapTilesLoading || zonesLoading || !ztlZones) && !mapError && !zonesError && !showInstallPrompt && !showDelayedPrompt && !showSoundSettings && !showUpgradePrompt && !selectedZone && !showInstallInstructions && (
-        <div className="fixed inset-0 bg-white/90 flex items-center justify-center z-[1995]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-800 font-medium">Loading map and zones...</p>
-            <div className="mt-2 text-xs text-gray-500 space-y-1">
-              {mapTilesLoading && <div>⏳ Map tiles</div>}
-              {zonesLoading && <div>⏳ Zones data</div>}
-              {zonesLoaded && !polygonsRendering && <div>✓ Zones loaded</div>}
-              {polygonsRendering && <div>✓ Rendering zones</div>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MAP */}
-      {mapReady && ztlZones && (
-        <MapContainer
-          center={center}
-          zoom={zoom}
-          className="h-[80%] w-full"
-          style={{ height: "80vh", width: "100%" }}
-          whenReady={handleMapReady}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
-          <ZoomControl position="topleft" />
-          <LocationMarker
-            onAlert={handleAlert}
-            alertSound={alertSound}
-            onNearestZone={handleNearestZone}
-            onPositionUpdate={handlePositionUpdate}
-            onAlertIncrement={handleAlertIncrement}
-            alertCount={alertCount}
-            ztlZones={ztlZones}
-          />
-          {ztlZones.features.map((f: ZoneFeature, i: number) => {
-            const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
-            const color = isNearest ? "red" : "orange";
-            const fillColor = isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)";
-            const fillOpacity = isNearest ? 0.5 : 0.2;
-
-            // GeoJSON uses [lng, lat] but React-leaflet expects [lat, lng]
-            // Also need to unwrap the nested array structure
-            const positions = f.geometry.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
-
-            return (
-              <Polygon
-                key={i}
-                positions={positions}
-                eventHandlers={{ click: () => handleZoneClick(f) }}
-                color={color}
-                fillColor={fillColor}
-                fillOpacity={fillOpacity}
-                weight={2}
-                opacity={0.8}
-              />
-            );
-          })}
-        </MapContainer>
-      )}
-
-      {/* ALERT BANNER */}
-      {isAlert && (
-        <div
-          onTouchEnd={handleDismissAlert}
-          onClick={handleDismissAlert}
-          className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1994] animate-slide-up cursor-pointer active:opacity-80"
-        >
-          <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
-          <p className="text-sm mt-1">Tap anywhere to dismiss</p>
-        </div>
-      )}
-
-      {/* ZONE DETAILS MODAL */}
-      {selectedZone && (
-        <div className="fixed inset-0 flex items-center justify-center z-[1500]">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">{selectedZone.properties.city}</h2>
-              <button onClick={() => setSelectedZone(null)} className="text-gray-400 hover:text-gray-600 text-2xl">
-                ✕
-              </button>
-            </div>
-            <div className="text-xs text-gray-500 text-center mb-4">
-              ⏱️ Closes automatically in 8 seconds
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1">{selectedZone.properties.name}</h3>
-                {selectedZone.properties.note && (
-                  <p className="text-gray-600 text-sm">{selectedZone.properties.note}</p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-3 rounded-lg">
-                  <p className="text-3xl font-bold text-blue-700">€{selectedZone.properties.fine}</p>
-                  <p className="text-sm text-gray-600">Potential fine</p>
-                </div>
-                <div className="bg-orange-50 p-3 rounded-lg">
-                  <p className="text-lg font-bold text-orange-700">Check hours</p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {selectedZone.properties.name === "Area C" ? "Mon-Fri 07:30-18:30" : "Check local signage"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <h4 className="font-bold text-gray-900 mb-2">Exceptions?</h4>
-                <ul className="space-y-1 text-sm text-gray-700">
-                  <li>• Residents with valid permit</li>
-                  <li>• Electric vehicles with charging plates</li>
-                  <li>• Emergency vehicles</li>
-                  <li>• Public transport (buses, taxis)</li>
-                  <li>• Disabled vehicles with valid exemption</li>
-                </ul>
-              </div>
-
-              <button onClick={handleUpgrade} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
-                Get Premium Permit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* UPGRADE PROMPT */}
-      {showUpgradePrompt && !selectedZone && (
-        <div className="fixed inset-0 flex items-center justify-center z-[1999]">
-          <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
-            <div className="text-center">
-              <div className="text-6xl mb-4">Free limit reached</div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">You've used {3 - alertCount} free alerts today</h3>
-              <p className="text-gray-700 text-lg mb-4">
-                Upgrade to Premium for unlimited alerts.
-              </p>
-              <div className="space-x-4 mt-6">
-                <button onClick={dismissUpgrade} className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300">
-                  Maybe later
-                </button>
-                <button onClick={handleUpgrade} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
-                  Upgrade to Premium
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* HEADER WITH STATUS BADGES */}
-      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
-              <span className="text-2xl">
-                {alertSound === 'siren' ? '🚨' : alertSound === 'calm' ? '🔔' : '🔕'}
-              </span>
-            </button>
-            <div>
-              <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026</h2>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded text-xs font-semibold ${mapReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                  {mapReady ? '✓ Map Ready' : '⏳ Loading'}
-                </span>
-                <span className={`px-2 py-1 rounded text-xs font-semibold ${zonesLoaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {zonesLoaded ? `✓ ${zonesCount} Zones` : '✗ 0 Zones'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
-            Upgrade to Premium
+          <button onClick={handleDismiss} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
+            Get Premium Permit
           </button>
         </div>
       </div>
+    );
+  }
 
-      {/* MAP CONTROLS */}
-      <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-[1000]">
-        <button onClick={handleZoomIn} className="bg-white shadow-lg rounded-lg p-2 text-blue-600 hover:bg-blue-50 text-xl">
-          +
-        </button>
-        <button onClick={handleZoomOut} className="bg-white shadow-lg rounded-lg p-2 text-blue-600 hover:bg-blue-50 text-xl">
-          −
-        </button>
-        <button onClick={handleCenterMap} className="bg-white shadow-lg rounded-lg p-2 text-green-600 hover:bg-green-50 text-xl">
-          ⌖
-        </button>
+  // Sound Settings Modal
+  function SoundSettingsModal() {
+    const { showSoundSettings, setShowSoundSettings, alertSound, setAlertSound } = [
+      showSoundSettings,
+      setShowSoundSettings,
+      alertSound,
+      setAlertSound
+    ];
+
+    const handleDismiss = useCallback(() => {
+      setShowSoundSettings(false);
+    }, [showSoundSettings]);
+
+    if (!showSoundSettings) return null;
+
+    return (
+      <div className="fixed inset-0 flex items-center justify-center z-[1999]">
+        <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-sm">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Alert Sound</h2>
+            <button onClick={handleDismiss} className="text-gray-400 hover:text-gray-600 text-2xl">
+              ✕
+            </button>
+          </div>
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setAlertSound('siren');
+                setShowSoundSettings(false);
+              }}
+              className={`w-full py-3 px-4 rounded-lg flex items-center justify-between ${alertSound === 'siren' ? 'bg-blue-100 border-blue-300' : 'bg-gray-100'} hover:bg-opacity-80`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{alertSound === 'siren' ? '🚨' : '🔔'}</span>
+                <span className="font-semibold">{alertSound === 'siren' ? 'Siren' : 'Chime'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const audio = new Audio("/siren.mp3");
+                    audio.play().catch(() => {});
+                  }}
+                  className="text-blue-600 hover:text-blue-700"
+                  disabled={alertSound !== 'siren'}
+                >
+                  ▶
+                </button>
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                setAlertSound('calm');
+                setShowSoundSettings(false);
+              }}
+              className={`w-full py-3 px-4 rounded-lg flex items-center justify-between ${alertSound === 'calm' ? 'bg-blue-100 border-blue-300' : 'bg-gray-100'} hover:bg-opacity-80`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔔</span>
+                <span className="font-semibold">Calm</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const audio = new Audio("/sounds/chime.mp3");
+                    audio.play().catch(() => {});
+                  }}
+                  className="text-blue-600 hover:text-blue-700"
+                  disabled={alertSound !== 'calm'}
+                >
+                  ▶
+                </button>
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                setAlertSound('silent');
+                setShowSoundSettings(false);
+              }}
+              className={`w-full py-3 px-4 rounded-lg flex items-center justify-between ${alertSound === 'silent' ? 'bg-blue-100 border-blue-300' : 'bg-gray-100'} hover:bg-opacity-80`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔕</span>
+                <span className="font-semibold">Silent</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    // Silent - no audio
+                  }}
+                  className="text-gray-400 cursor-not-allowed"
+                  disabled={alertSound === 'silent'}
+                >
+                  ▶
+                </button>
+              </div>
+            </button>
+          </div>
+        </div>
       </div>
+    );
+  }
 
-      <style jsx global>{`
-        @keyframes slideUp {
-          from {
-            transform: translateY(100%);
-            opacity: 0;
+  // Diagnostic Console Component
+  function DiagnosticConsole() {
+    const { isAlert, alertMessage } = [
+      alertHistory.alerts,
+      alertHistory.alertCount,
+      alertHistory.alertCount
+    ];
+
+    return (
+      <div className="fixed bottom-4 left-4 p-3 bg-gray-900/95 text-white rounded-lg z-[9997] max-w-md max-h-96 overflow-y-auto">
+        <h3 className="text-sm font-bold text-yellow-300 mb-2">📊 DIAGNOSTIC CONSOLE</h3>
+        <div className="space-y-2 text-xs font-mono">
+          <div>
+            <span className="text-blue-400 font-semibold">Map:</span> {mapReady ? 'Ready' : 'Loading...'}
+            {mapTilesLoading && <span className="ml-2 text-gray-400">⏳ Tiles</span>}
+            {zonesLoaded && <span className="text-green-400">✓ Zones: {zonesCount}</span>}
+          </div>
+          <div>
+            <span className="text-blue-400 font-semibold">GPS:</span> {gpsPosition ? `${gpsPosition[0].toFixed(4)}, ${gpsPosition[1].toFixed(4)}` : 'Not active'}
+          </div>
+          <div>
+            <span className="text-purple-400 font-semibold">Nearest Zone:</span> {nearestZone?.properties.name || 'None'}
+          </div>
+          <div>
+            <span className="text-red-400 font-semibold">Alert:</span> {isAlert ? alertMessage || 'No alert' : 'Idle'}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-700">
+            <span className="text-xs text-gray-500">Recent:</span>
+            <div>
+              {alerts.slice(-5).reverse().map((alert, i) => (
+                <div key={alert.id} className="text-xs text-gray-300 mb-1">
+                  <div className="font-semibold text-gray-700">{alert.type.replace(/_/g, ' ').toUpperCase()}</div>
+                  <div>
+                    {alert.city} - {alert.zone}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {alert.distance > 0 ? `${alert.distance.toFixed(0)}m` : ''}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {new Date(alert.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Export Button Component
+  function ExportButton() {
+    const { alerts, alertCount } = [
+      alertHistory.alerts,
+      alertHistory.alertCount,
+      alertHistory.alertCount
+    ];
+
+    const [exporting, setExporting] = useState(false);
+
+    const handleExport = useCallback(() => {
+      setExporting(true);
+      const sessionData = {
+        exportDate: new Date().toISOString(),
+        device: navigator.userAgent,
+        appVersion: '1.0.1',
+        alerts,
+        alertCount,
+        stats: {
+          totalAlerts: alerts.length,
+          alertsInZone: alerts.filter(a => a.type === 'inside_zone').length,
+          totalGpsPositions: gpsHistory.positions.length,
+          positionsInZone: gpsHistory.getPositionsInZone().length,
+          totalInteractions: zoneInteractions.interactions.length,
+        },
+      };
+
+      const dataStr = JSON.stringify(sessionData, null, 2);
+
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ztl-copilot-session-${Date.now()}.json`;
+      a.click();
+
+      navigator.clipboard.writeText(dataStr);
+
+      setTimeout(() => {
+        alert(`✅ ${alerts.length} alerts, ${gpsHistory.positions.length} positions exported!`);
+        setExporting(false);
+      }, 1000);
+
+      console.log("📤 Session exported:", sessionData);
+    }, [alerts, gpsHistory.positions, zoneInteractions.interactions]);
+
+    return (
+      <button
+        disabled={exporting}
+        onClick={handleExport}
+        className="fixed top-4 right-4 z-[10006] px-4 py-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition"
+      >
+        {exporting ? (
+          <>
+            <svg className="animate-spin h-5 w-5 ml-1" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            </svg>
+          </>
+        ) : (
+          <>
+            <span className="text-sm">Export</span>
+          </>
+        )}
+      </button>
+    );
+  }
+
+  // Main Map Component
+  export default function ZtlMap() {
+    const [center, setCenter] = useState<[number, number]>([45.4642, 9.1900]);
+    const [zoom, setZoom] = useState(13);
+
+    return (
+      <>
+        {/* Map Container */}
+        <MapContainer
+          center={center}
+          zoom={zoom}
+          style={{ height: '100vh', width: '100%' }}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; OpenStreetMap contributors'
+            maxZoom={19}
+          />
+
+          {/* ZTL Zones */}
+          {ztlZones && (
+            <>
+              {ztlZones.features.map((f: ZoneFeature, i: number) => {
+                const isNearest = nearestZone && nearestZone.properties.name === f.properties.name;
+
+                return (
+                  <Polygon
+                    key={i}
+                    positions={f.geometry.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                    eventHandlers={{
+                      click: () => setSelectedZone(f),
+                    }}
+                    color={isNearest ? "#ff0000" : "#FF9800"}
+                    fillColor={isNearest ? "rgba(255, 0, 0, 0.3)" : "rgba(255, 165, 0, 0.2)"}
+                    fillOpacity={isNearest ? 0.5 : 0.2}
+                    weight={2}
+                    opacity={0.8}
+                  />
+                );
+              })}
+
+              {/* GPS Marker */}
+              <LocationMarker
+                onAlert={(active, message) => {
+                  setIsAlert(active);
+                  setAlertMessage(message);
+
+                  if (alertCount >= 3 && !showUpgradePrompt) {
+                    setShowUpgradePrompt(true);
+                  }
+                }}
+                alertSound={alertSound}
+                onNearestZone={handleNearestZone}
+                onPositionUpdate={handleGpsPositionUpdate}
+                onAlertIncrement={handleAlertIncrement}
+                alertCount={alertCount}
+                ztlZones={ztlZones}
+              />
+
+              {/* Zone Details Modal */}
+              <ZoneDetailsModal />
+
+              {/* Sound Settings Modal */}
+              {showSoundSettings && <SoundSettingsModal />}
+
+              {/* Alert Banner */}
+              <AlertBanner />
+
+              {/* Diagnostic Console */}
+              <DiagnosticConsole />
+
+              {/* Export Button */}
+              <ExportButton />
+            </>
+          )}
+        </MapContainer>
+
+        {/* Zone Details Modal (when zone selected) */}
+        {selectedZone && <ZoneDetailsModal />}
+
+        {/* Alert Banner (when active) */}
+        {isAlert && <AlertBanner />}
+
+        {/* Sound Settings Modal (when open) */}
+        {showSoundSettings && <SoundSettingsModal />}
+      </>)
+      </>
+    );
+  }
+
+  // Zone Status Hook
+  function useZtlStatus() {
+    return {
+      isZoneActive: (zoneName: string) => {
+        const zoneHours: {
+          "Area C": "Mon-Fri 07:30-18:30",
+          "Como Città Murata": "Mon-Sat 08:00-18:30",
+          "Varese Centro": "Mon-Sat 08:00-18:30",
+          "Bergamo ZTL": "Mon-Fri 07:30-18:30",
+          "Brescia ZTL": "Mon-Fri 07:30-18:30",
+          "Monza C5": "Mon-Fri 07:30-18:30",
+        };
+
+        const now = new Date();
+        const day = now.getDay();
+        const hours = now.getHours();
+
+        if (zoneHours[zoneName]) {
+          const start = zoneHours[zoneName].split('-')[0].split(':');
+          const [startHour, startMin] = start.map(Number);
+          const end = zoneHours[zoneName].split('-')[1].split(':');
+          const [endHour, endMin] = end.map(Number);
+
+          const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMin);
+          const endTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), endHour, endMin);
+
+          if (hours >= startHour && hours < endHour) {
+            return true;
           }
-          to {
-            transform: translateY(0);
-            opacity: 1;
+
+          if (hours === startHour && minutes >= startMin && minutes < endMin) {
+            return true;
           }
+
+          return false;
         }
-        .animate-slide-up {
-          animation: slideUp 0.3s ease-out;
-        }
-      `}</style>
-    </div>
-  );
-}
+
+        return false;
+      },
+    };
+  }
+
+  // Zone Interactions Hook
+  function useZoneInteractions() {
+    const [interactions, setInteractions] = useState<ZoneInteraction[]>([]);
+    const [modalDurations, setModalDurations] = useState<Record<string, number>>({});
+
+    const recordZoneTap = useCallback((zone: string, gpsAccuracy?: number) => {
+      const interaction: ZoneInteraction = {
+        id: `${Date.now()}-${Math.random()}`,
+        zone,
+        zoneName: zone.properties.name,
+        action: 'tap',
+        timestamp: Date.now(),
+        duration: 0,
+        gpsAccuracy,
+      };
+
+      setInteractions(prev => [...prev, interaction]);
+      console.log(`🎯 DEBUG: Zone tap recorded: "${zone}"`);
+    }, []);
+
+    const recordZoneView = useCallback((zone: string, duration: number) => {
+      const interaction: ZoneInteraction = {
+        id: `${Date.now()}-${Math.random()}`,
+        zone,
+        zoneName: zone.properties.name,
+        action: 'view',
+        timestamp: Date.now(),
+        duration,
+      };
+
+      setInteractions(prev => [...prev, interaction]);
+      setModalDurations(prev => ({ ...prev, [interaction.id]: duration }));
+      console.log(`🔍 DEBUG: Zone view recorded: "${zone}" for ${duration}ms`);
+    }, []);
+
+    const recordModalDismiss = useCallback((interactionId: string, duration: number) => {
+      const interaction = ZoneInteraction = {
+        id: `${Date.now()}-${Math.random()}`,
+        zone: 'unknown',
+        zoneName: 'unknown',
+        action: 'dismiss_modal',
+        timestamp: Date.now(),
+        duration,
+      };
+
+      setInteractions(prev => {
+        const index = prev.findIndex(i => i.id === interactionId);
+        if (index === -1) return prev;
+
+        const updated = prev.slice(0, index);
+        updated.push(interaction);
+        return updated;
+      });
+
+      console.log('🔍 DEBUG: Modal dismiss recorded (duration: ' + duration + 'ms)');
+    }, []);
+
+    const recordAlertDismiss = useCallback(() => {
+      const interaction: ZoneInteraction = {
+        id: `${Date.now()}-${Math.random()}`,
+        zone: 'unknown',
+        zoneName: 'unknown',
+        action: 'dismiss_alert',
+        timestamp: Date.now(),
+        duration: 0,
+      };
+
+      setInteractions(prev => [...prev, interaction]);
+      console.log('🔍 DEBUG: Alert dismiss recorded');
+    }, []);
+
+    const getInteractionsByZone = useCallback((zoneName: string) => {
+      return interactions.filter(i => i.zoneName === zoneName);
+    }, [interactions]);
+
+    const getInteractionsByAction = useCallback((action: ZoneInteraction['action']) => {
+      return interactions.filter(i => i.action === action);
+    }, [interactions, getInteractionsByZone]);
+
+    const getTapCountByZone = useCallback((zoneName: string) => {
+      return getInteractionsByZone(zoneName).filter(i => i.action === 'tap').length;
+    }, [getInteractionsByZone, getInteractionsByAction]);
+
+    const getLastInteraction = useCallback((zoneName: string) => {
+      const zoneInteractions = getInteractionsByZone(zoneName);
+      if (zoneInteractions.length === 0) return null;
+      return zoneInteractions[zoneInteractions.length - 1];
+    }, [getInteractionsByZone]);
+
+    const getAverageModalDuration = useCallback((zoneName: string) => {
+      const zoneViews = getInteractionsByZone(zoneName).filter(i => i.action === 'view');
+      if (zoneViews.length === 0) return 0;
+
+      const modalDismissals = zoneViews.filter(i => i.action === 'dismiss_modal');
+      const duration = modalDismissals.reduce((sum, d) => sum + (d.duration || 0), 0);
+
+      return Math.round(duration / zoneViews.length);
+    }, [getInteractionsByZone]);
+
+    return {
+      interactions,
+      recordZoneTap,
+      recordZoneView,
+      recordModalDismiss,
+      recordAlertDismiss,
+      getInteractionsByZone,
+      getInteractionsByAction,
+      getTapCountByZone,
+      getAverageModalDuration,
+      modalDurations,
+      getLastInteraction,
+    };
+  }
