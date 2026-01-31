@@ -22,17 +22,18 @@ interface ZoneFeature {
 
 type AlertSound = "siren" | "calm" | "silent";
 
-function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, ztlZones }: {
+function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, onAlertIncrement, alertCount, ztlZones }: {
   onAlert: (active: boolean, message?: string) => void;
   alertSound: AlertSound;
   onNearestZone: (zone: ZoneFeature | null) => void;
   onPositionUpdate: (position: [number, number] | null) => void;
+  onAlertIncrement: () => void;
+  alertCount: number;
   ztlZones: any;
 }) {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
-  const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
@@ -79,6 +80,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
 
         const approaching200m = minDistance < 0.2;
         const approaching100m = minDistance < 0.1;
+        const approaching50m = minDistance < 0.05;
         const insideZone = minDistance < 0.02;
 
         const activeViolations = ztlZones.features.filter((zone: any) => {
@@ -89,8 +91,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
 
         if (activeViolations.length > 0 && alertCount < 3) {
           const zone = activeViolations[0];
+          onAlertIncrement();
           const newCount = alertCount + 1;
-          setAlertCount(newCount);
 
           const city = zone.properties.city;
           const name = zone.properties.name;
@@ -106,8 +108,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.play().catch(() => {});
           }
         } else if (approaching200m && alertCount < 3 && nearest) {
+          onAlertIncrement();
           const newCount = alertCount + 1;
-          setAlertCount(newCount);
 
           const nearestZone = nearest as any;
           const nearestCity = nearestZone.properties.city;
@@ -124,13 +126,28 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.play().catch(() => {});
           }
         } else if (approaching100m && alertCount < 3) {
+          onAlertIncrement();
           const newCount = alertCount + 1;
-          setAlertCount(newCount);
 
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
 
           const alertMessage = `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
+
+          onAlert(true, alertMessage);
+
+          if (siren) {
+            siren.currentTime = 0;
+            siren.play().catch(() => {});
+          }
+        } else if (approaching50m && alertCount < 3 && nearest) {
+          onAlertIncrement();
+          const newCount = alertCount + 1;
+
+          const distStr = distInMeters.toFixed(0);
+          const remaining = 3 - newCount;
+
+          const alertMessage = `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`;
 
           onAlert(true, alertMessage);
 
@@ -152,7 +169,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, onNearestZone, onPositionUpdate, ztlZones]);
+  }, [map, onAlert, siren, alertCount, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
 
   return position ? <Marker position={position} /> : null;
 }
@@ -199,6 +216,12 @@ export default function ZtlMap() {
 
   const handlePositionUpdate = (position: [number, number] | null) => {
     setGpsPosition(position);
+  };
+
+  const handleAlertIncrement = () => {
+    const newCount = alertCount + 1;
+    setAlertCount(newCount);
+    localStorage.setItem('ztl-alert-count', newCount.toString());
   };
 
   useEffect(() => {
@@ -699,6 +722,8 @@ export default function ZtlMap() {
             alertSound={alertSound}
             onNearestZone={handleNearestZone}
             onPositionUpdate={handlePositionUpdate}
+            onAlertIncrement={handleAlertIncrement}
+            alertCount={alertCount}
             ztlZones={ztlZones}
           />
           {ztlZones.features.map((f: ZoneFeature, i: number) => {
