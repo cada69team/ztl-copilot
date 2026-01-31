@@ -1,7 +1,7 @@
 "use client"
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap, ZoomControl } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
@@ -34,6 +34,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
+  const alertCountRef = useRef(alertCount);
 
   useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
@@ -45,6 +46,11 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
       sirenAudio.remove();
     };
   }, []);
+
+  // Sync ref with alertCount prop without triggering re-renders
+  useEffect(() => {
+    alertCountRef.current = alertCount;
+  }, [alertCount]);
 
   useEffect(() => {
     if (!map || !ztlZones) return;
@@ -89,10 +95,10 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           return isInside && isActiveNow;
         });
 
-        if (activeViolations.length > 0 && alertCount < 3) {
+        if (activeViolations.length > 0 && alertCountRef.current < 3) {
           const zone = activeViolations[0];
           onAlertIncrement();
-          const newCount = alertCount + 1;
+          const newCount = alertCountRef.current + 1;
 
           const city = zone.properties.city;
           const name = zone.properties.name;
@@ -107,9 +113,9 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCount < 3 && nearest) {
+        } else if (approaching200m && alertCountRef.current < 3 && nearest) {
           onAlertIncrement();
-          const newCount = alertCount + 1;
+          const newCount = alertCountRef.current + 1;
 
           const nearestZone = nearest as any;
           const nearestCity = nearestZone.properties.city;
@@ -125,9 +131,9 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching100m && alertCount < 3) {
+        } else if (approaching100m && alertCountRef.current < 3) {
           onAlertIncrement();
-          const newCount = alertCount + 1;
+          const newCount = alertCountRef.current + 1;
 
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
@@ -140,9 +146,9 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching50m && alertCount < 3 && nearest) {
+        } else if (approaching50m && alertCountRef.current < 3 && nearest) {
           onAlertIncrement();
-          const newCount = alertCount + 1;
+          const newCount = alertCountRef.current + 1;
 
           const distStr = distInMeters.toFixed(0);
           const remaining = 3 - newCount;
@@ -169,7 +175,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
       { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watcher);
-  }, [map, onAlert, siren, alertCount, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
+  }, [map, onAlert, siren, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
 
   return position ? <Marker position={position} /> : null;
 }
