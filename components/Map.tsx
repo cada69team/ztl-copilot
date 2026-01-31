@@ -59,7 +59,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
         let nearest: ZoneFeature | null = null;
         let minDistance = Infinity;
 
-        ztlZones.features.forEach((zone: ZoneFeature) => {
+        ztlZones.features.forEach((zone: ZoneFeature | any) => {
           const polygon = turf.polygon(zone.geometry.coordinates);
           const distance = turf.pointToPolygonDistance(pt, polygon);
           if (distance < minDistance && distance < 1) {
@@ -69,10 +69,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, ztlZones }: {
         });
 
         if (nearest) {
-    const nearestZone = nearest as any;
-
-          console.log("✅ LocationMarker: Nearest zone found:", nearest.properties.name);
-          onNearestZone(nearest);
+          console.log("✅ LocationMarker: Nearest zone found:", (nearest as any).properties.name);
+          onNearestZone(nearest as ZoneFeature);
         }
 
         const distInMeters = minDistance * 1000;
@@ -414,9 +412,6 @@ export default function ZtlMap() {
         {polygonsRendering && <div className="text-blue-400">⏳ Polygons rendering...</div>}
         <div className="h-px bg-gray-700 my-2"></div>
         {nearestZone && <div className="text-green-400">✅ Nearest zone: {nearestZone.properties.name}</div>}
-        <div className="h-px bg-gray-700 my-2"></div>
-        {position && <div className="text-cyan-400">✅ GPS active: {position[0].toFixed(4)}, {position[1].toFixed(4)}</div>}
-        {!position && <div className="text-gray-400">⚠️ GPS not active</div>}
       </div>
 
       {/* ZONES ERROR ALERT WITH ACTIONS */}

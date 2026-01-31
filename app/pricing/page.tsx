@@ -128,6 +128,7 @@ export default function Pricing() {
                 Current Plan
               </button>
             </div>
+          </div>
 
           <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'premium' ? 'border-blue-500 ring-4 ring-blue-500 ring-opacity-20' : 'border-gray-100'}`}>
             <div className="p-6">
@@ -158,6 +159,7 @@ export default function Pricing() {
                 {isProcessing ? 'Processing...' : 'Upgrade to Premium'}
               </button>
             </div>
+          </div>
 
           <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'lifetime' ? 'border-purple-500 ring-4 ring-purple-500 ring-opacity-20' : 'border-gray-100'}`}>
             <div className="p-6">
@@ -191,6 +193,7 @@ export default function Pricing() {
                 {isProcessing ? 'Processing...' : 'Get Lifetime'}
               </button>
             </div>
+          </div>
         </div>
 
         <div className="mt-8 p-6 bg-white rounded-2xl shadow-lg">

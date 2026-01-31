@@ -3,11 +3,7 @@ import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
-export async function handler(req: NextRequest) {
-  if (req.method !== 'POST') {
-    return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
-  }
-
+export async function POST(req: NextRequest) {
   try {
     const { tier } = await req.json();
 
@@ -36,7 +32,6 @@ export async function handler(req: NextRequest) {
     }
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       line_items: [
         {
           price: selectedTier.priceId,
@@ -49,7 +44,7 @@ export async function handler(req: NextRequest) {
       customer_email: 'customer@example.com',
       metadata: {
         tier: tier,
-        userId: req.cookies.get('user-id') || 'anonymous',
+        userId: req.cookies.get('user-id')?.value || 'anonymous',
       },
     });
 
