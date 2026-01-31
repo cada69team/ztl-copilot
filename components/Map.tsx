@@ -218,6 +218,17 @@ export default function ZtlMap() {
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
+  // Auto-dismiss zone info modal after 8 seconds
+  useEffect(() => {
+    if (selectedZone) {
+      const timer = setTimeout(() => {
+        console.log("⏱️ Auto-dismissing zone info modal after 8 seconds");
+        setSelectedZone(null);
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedZone]);
+
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showDelayedPrompt, setShowDelayedPrompt] = useState(false);
@@ -795,6 +806,9 @@ export default function ZtlMap() {
               <button onClick={() => setSelectedZone(null)} className="text-gray-400 hover:text-gray-600 text-2xl">
                 ✕
               </button>
+            </div>
+            <div className="text-xs text-gray-500 text-center mb-4">
+              ⏱️ Closes automatically in 8 seconds
             </div>
 
             <div className="space-y-4">
