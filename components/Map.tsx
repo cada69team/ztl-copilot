@@ -354,6 +354,11 @@ export default function ZtlMap() {
     }
   }, [alertCount, showUpgradePrompt]);
 
+  const handleDismissAlert = useCallback(() => {
+    console.log("👆 Alert dismissed by user");
+    setIsAlert(false);
+  }, []);
+
   const handleMapReady = () => {
     console.log("✅ Map ready!");
   };
@@ -791,9 +796,13 @@ export default function ZtlMap() {
 
       {/* ALERT BANNER */}
       {isAlert && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1994] animate-slide-up">
+        <div
+          onTouchEnd={handleDismissAlert}
+          onClick={handleDismissAlert}
+          className="fixed bottom-0 left-0 right-0 p-4 bg-red-700 text-white text-center z-[1994] animate-slide-up cursor-pointer active:opacity-80"
+        >
           <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
-          <p className="text-sm mt-1">Tap to dismiss</p>
+          <p className="text-sm mt-1">Tap anywhere to dismiss</p>
         </div>
       )}
 
