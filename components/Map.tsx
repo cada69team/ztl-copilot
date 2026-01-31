@@ -35,6 +35,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [position, setPosition] = useState<[number, number] | null>(null);
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
+  const watcherStartedRef = useRef(false);
 
   useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
@@ -54,8 +55,10 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
 
   useEffect(() => {
     if (!map || !ztlZones) return;
+    if (watcherStartedRef.current) return; // Prevent duplicate watchers
 
     console.log("✅ LocationMarker: Starting GPS watcher");
+    watcherStartedRef.current = true;
 
     const watcher = navigator.geolocation.watchPosition(
       (pos) => {
@@ -174,7 +177,11 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
       },
       { enableHighAccuracy: true }
     );
-    return () => navigator.geolocation.clearWatch(watcher);
+
+    return () => {
+      navigator.geolocation.clearWatch(watcher);
+      watcherStartedRef.current = false;
+    };
   }, [map, onAlert, siren, onNearestZone, onPositionUpdate, onAlertIncrement, ztlZones]);
 
   return position ? <Marker position={position} /> : null;
