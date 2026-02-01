@@ -107,7 +107,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           return isInside && isActiveNow;
         });
 
-        if (activeViolations.length > 0 && alertCountRef.current < 3) {
+        if (activeViolations.length > 0) {
           const zone = activeViolations[0];
           onAlertIncrement();
           const newCount = alertCountRef.current + 1;
