@@ -5,6 +5,10 @@ import { MapContainer, TileLayer, Polygon, Marker, useMap, ZoomControl } from "r
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
 import DebugPanel from "@/components/DebugPanel";
+import { ToastContainer, toast } from 'react-toastify';
+import Toast from "@/components/Toast";
+import {useToast} from "@/hooks/useToast";
+ 
 
 interface ZoneFeature {
   type: string;
@@ -36,6 +40,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
   const watcherIdRef = useRef<number | null>(null);
+  
   const alertFreePlan=10000;
 
   useEffect(() => {
@@ -232,6 +237,8 @@ export default function ZtlMap() {
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [debugPanelExpanded, setDebugPanelExpanded] = useState(false);
+  const { toasts,  dismissToast,  showAlert,  showZone,  showWarning } = useToast();
   const mainAlertFreePlan=10000;
 
   // Auto-dismiss zone info modal after 8 seconds
@@ -259,13 +266,42 @@ export default function ZtlMap() {
   });
   const [showSoundSettings, setShowSoundSettings] = useState(false);
 
-  const [center, setCenter] = useState<[number, number]>([45.4642, 9.1900]);
+  const [center, setCenter] = useState<[number, number]>([45.479853, 9.169119]);
   const [zoom, setZoom] = useState(13);
 
   const handleNearestZone = useCallback((zone: ZoneFeature | null) => {
     console.log("✅ ZtlMap: Nearest zone updated:", zone?.properties.name || "null");
     setNearestZone(zone);
-  }, []);
+    if (zone) {
+      setDebugPanelExpanded(true);
+      // show toast nearest zone
+      const city = zone.properties.city;
+      const name = zone.properties.name;
+      const fine = zone.properties.fine;
+      
+      // showZone(
+      //   `📍 Nearest Zone: ${name}`,
+      //   `City: ${city}\nPotential Fine: €${fine}\nStay alert!`,
+      //   5000
+      // );
+
+      // showWarning(  `📍 Nearest Zone: ${name}`,
+      //   `City: ${city}\nPotential Fine: €${fine}\nStay alert!`,
+      //   5000)
+
+      toast( `City: ${city}\nPotential Fine: €${fine}\nStay alert!`,{
+                                position: "top-center",
+                                autoClose: 5000,
+                                hideProgressBar: false,
+                                closeOnClick: false,
+                                pauseOnHover: true,
+                                draggable: true,
+                                progress: undefined,
+                                theme: "dark",
+                                type: "warning"                             
+                                });
+    }
+  }, [showZone]);
 
   const handlePositionUpdate = useCallback((position: [number, number] | null) => {
     setGpsPosition(position);
@@ -368,7 +404,39 @@ export default function ZtlMap() {
     if (alertCount >= mainAlertFreePlan && !showUpgradePrompt) {
       setShowUpgradePrompt(true);
     }
-  }, [alertCount, showUpgradePrompt]);
+
+    if (message && active) {
+      setAlertMessage(message);
+      
+      // ADD THIS: open debug panel on alert
+      setDebugPanelExpanded(true);
+
+         // show toast with alert info 
+      const lines = message.split('\n');
+      const title = lines[0]; // Prima riga come titolo
+      const body = lines.slice(1).join('\n'); // Resto come corpo
+      
+      // chose toast base on alert type
+      // if (message.includes('INSIDE ZTL')) {
+      //   showAlert('🚨 INSIDE ZTL ZONE!', body, 8000);
+      // } else if (message.includes('ZTL')) {
+      //   showWarning('⚠️ ZTL Approaching', body, 6000);
+      // }
+      
+      toast( body,{
+                                position: "top-center",
+                                autoClose: 5000,
+                                hideProgressBar: false,
+                                closeOnClick: false,
+                                pauseOnHover: true,
+                                draggable: true,
+                                progress: undefined,
+                                theme: "dark",
+                                type: "error"                             
+                                });
+    }
+
+  }, [alertCount, showUpgradePrompt,showAlert, showWarning]);
 
   const handleDismissAlert = useCallback(() => {
     console.log("👆 Alert dismissed by user");
@@ -487,7 +555,7 @@ export default function ZtlMap() {
   return (
     <div className="h-screen w-full bg-white">
       {/* EXPANDED DIAGNOSTIC CONSOLE */}
-      <div className="fixed bottom-4 left-4 p-3 bg-black/95 text-white rounded-lg z-[4000] text-xs font-mono max-w-sm overflow-y-auto max-h-48">
+      {/* <div className="fixed bottom-4 left-4 p-3 bg-black/95 text-white rounded-lg z-[4000] text-xs font-mono max-w-sm overflow-y-auto max-h-48">
         <div className="font-bold text-yellow-300 mb-2">📊 DIAGNOSTIC CONSOLE</div>
         {mapTilesLoading && <div className="text-yellow-200">⏳ Map tiles loading...</div>}
         {mapReady && !mapTilesLoading && <div className="text-green-400">✅ Map tiles loaded</div>}
@@ -503,10 +571,10 @@ export default function ZtlMap() {
         <div className="h-px bg-gray-700 my-2"></div>
         {gpsPosition && <div className="text-cyan-400">✅ GPS active: {gpsPosition[0].toFixed(4)}, {gpsPosition[1].toFixed(4)}</div>}
         {!gpsPosition && <div className="text-gray-400">⚠️ GPS not active</div>}
-      </div>
+      </div> */}
 
       {/* ZONES ERROR ALERT WITH ACTIONS */}
-      {zonesError && (
+      {/* {zonesError && (
         <div className="fixed top-24 left-4 right-4 z-[3000]">
           <div className="bg-red-50 border-2 border-red-300 p-4 rounded-lg shadow-xl max-w-md">
             <div className="flex justify-between items-start mb-3">
@@ -543,10 +611,10 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* INSTALL INSTRUCTIONS MODAL */}
-      {showInstallInstructions && (
+      {/* {showInstallInstructions && (
         <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/50 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
             <div className="flex justify-between items-start mb-4">
@@ -599,7 +667,7 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* SOUND SETTINGS MODAL */}
       {showSoundSettings && (
@@ -676,7 +744,7 @@ export default function ZtlMap() {
       )}
 
       {/* PWA INSTALL PROMPT - BOTTOM SHEET */}
-      {showInstallPrompt && (
+      {/* {showInstallPrompt && (
         <div className="fixed inset-x-0 bottom-0 z-[1998] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4">
             <div className="max-w-md mx-auto">
@@ -708,10 +776,10 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* DELAYED INSTALL PROMPT */}
-      {showDelayedPrompt && (
+      {/* {showDelayedPrompt && (
         <div className="fixed bottom-4 right-4 z-[1997] animate-slide-up">
           <div className="bg-white/95 backdrop-blur-sm border border-gray-300 rounded-lg p-4 shadow-xl">
             <div className="flex items-center gap-3 max-w-sm mx-auto">
@@ -730,7 +798,7 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* MAP ERROR */}
       {mapError && (
@@ -760,6 +828,9 @@ export default function ZtlMap() {
           </div>
         </div>
       )}
+          {/* TOAST NOTIFICATIONS */}
+       {/* <Toast toasts={toasts} onDismiss={dismissToast} />  */}
+       <ToastContainer />
 
       {/* MAP */}
       {mapReady && ztlZones && (
@@ -767,7 +838,7 @@ export default function ZtlMap() {
           center={center}
           zoom={zoom}
           className="h-[80%] w-full"
-          style={{ height: "80vh", width: "100%" }}
+          style={{ height: "80vh", width: "100%"}}
           whenReady={handleMapReady}
         >
           <TileLayer
@@ -775,6 +846,7 @@ export default function ZtlMap() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
           <ZoomControl position="topleft" />
+      
           <LocationMarker
             onAlert={handleAlert}
             alertSound={alertSound}
@@ -811,10 +883,17 @@ export default function ZtlMap() {
       )}
 
       {/* DEBUG PANEL */}
-    <DebugPanel />
+    {/* <DebugPanel /> */}
+    {/* <DebugPanel 
+      expanded={debugPanelExpanded} 
+      onExpandChange={setDebugPanelExpanded} 
+    /> */}
+
+    {/* TOAST NOTIFICATIONS */}
+    {/* <Toast toasts={toasts} onDismiss={dismissToast} /> */}
 
       {/* ALERT BANNER */}
-      {isAlert && (
+      {/* {isAlert && (
         <div
           onTouchEnd={handleDismissAlert}
           onClick={handleDismissAlert}
@@ -823,10 +902,10 @@ export default function ZtlMap() {
           <p className="font-bold text-lg whitespace-pre-line">{alertMessage}</p>
           <p className="text-sm mt-1">Tap anywhere to dismiss</p>
         </div>
-      )}
+      )} */}
 
       {/* ZONE DETAILS MODAL */}
-      {selectedZone && (
+      {/* {selectedZone && (
         <div className="fixed inset-0 flex items-center justify-center z-[1500]">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
             <div className="flex justify-between items-start mb-4">
@@ -877,7 +956,7 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* UPGRADE PROMPT */}
       {showUpgradePrompt && !selectedZone && (
@@ -903,7 +982,7 @@ export default function ZtlMap() {
       )}
 
       {/* HEADER WITH STATUS BADGES */}
-      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
+      {/* <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
@@ -928,10 +1007,10 @@ export default function ZtlMap() {
             Upgrade to Premium
           </button>
         </div>
-      </div>
+      </div> */}
 
       {/* MAP CONTROLS */}
-      <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-[1000]">
+      {/* <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-[1000]">
         <button onClick={handleZoomIn} className="bg-white shadow-lg rounded-lg p-2 text-blue-600 hover:bg-blue-50 text-xl">
           +
         </button>
@@ -941,7 +1020,7 @@ export default function ZtlMap() {
         <button onClick={handleCenterMap} className="bg-white shadow-lg rounded-lg p-2 text-green-600 hover:bg-green-50 text-xl">
           ⌖
         </button>
-      </div>
+      </div> */}
 
       <style jsx global>{`
         @keyframes slideUp {
@@ -954,7 +1033,17 @@ export default function ZtlMap() {
             opacity: 1;
           }
         }
-        .animate-slide-up {
+
+        @keyframes progress {
+        from {
+          width: 100%;
+        }
+        to {
+          width: 0%;
+        }
+      }
+
+      .animate-slide-up {
           animation: slideUp 0.3s ease-out;
         }
       `}</style>

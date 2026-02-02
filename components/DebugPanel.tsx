@@ -2,8 +2,25 @@
 
 import { useState, useCallback  } from "react";
 
-export default function DebugPanel() {
-  const [expanded, setExpanded] = useState(false);
+interface DebugPanelProps {
+  expanded?: boolean;
+  onExpandChange?: (expanded: boolean) => void;
+}
+
+export default function DebugPanel({ expanded: controlledExpanded, onExpandChange }: DebugPanelProps = {}) {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  
+  // Usa expanded controllato se fornito, altrimenti usa lo stato interno
+  const expanded = controlledExpanded !== undefined ? controlledExpanded : internalExpanded;
+  
+  const handleToggle = () => {
+    const newExpanded = !expanded;
+    if (onExpandChange) {
+      onExpandChange(newExpanded);
+    } else {
+      setInternalExpanded(newExpanded);
+    }
+  };
 
   const alerts = JSON.parse(localStorage.getItem('ztl-alert-history') || '[]');
   const positions = JSON.parse(localStorage.getItem('ztl-gps-history') || '[]');
@@ -14,10 +31,14 @@ export default function DebugPanel() {
       localStorage.removeItem('ztl-alert-history');
       localStorage.removeItem('ztl-gps-history');
       localStorage.removeItem('ztl-zone-interactions');
-      setExpanded(false);
+      if (onExpandChange) {
+        onExpandChange(false);
+      } else {
+        setInternalExpanded(false);
+      }
       alert('✅ All history cleared!');
     }
-  }, []);
+  }, [onExpandChange]);
 
 
   const handleExport = useCallback(() => {
@@ -53,7 +74,7 @@ export default function DebugPanel() {
   return (
     <div className="fixed top-4 left-4 bg-gray-900/95 backdrop-blur-sm rounded-lg shadow-2xl z-[10001] max-w-md">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={handleToggle}
         className="w-full flex justify-between items-center p-3 bg-white/90 hover:bg-white/80 rounded-t border border-gray-300 cursor-pointer"
       >
         <span className="text-sm font-bold text-gray-900">📊 DEBUG PANEL</span>
@@ -61,7 +82,7 @@ export default function DebugPanel() {
       </button>
 
       {expanded && (
-        <div className="space-y-3">
+        <div className="space-y-3 p-4">
           {/* Alert Stats */}
           <div className="bg-white/95 rounded-lg p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3">📊 Alert Statistics</h3>
@@ -102,7 +123,7 @@ export default function DebugPanel() {
             </div>
             <div className="max-h-48 overflow-y-auto">
               {alerts.slice(-10).reverse().map((alert: any, i: number) => (
-                <div key={i} className="text-xs p-2 bg-gray-50 rounded border-l-2 border-gray-200">
+                <div key={i} className="text-xs p-2 bg-gray-50 rounded border-l-2 border-gray-200 mb-2">
                   <div className="font-semibold text-gray-900 mb-1">
                     {alert.type.replace(/_/g, ' ').toUpperCase()}
                   </div>
@@ -139,7 +160,7 @@ export default function DebugPanel() {
             </div>
             <div className="max-h-48 overflow-y-auto">
               {positions.slice(-20).reverse().map((pos: any, i: number) => (
-                <div key={i} className="text-xs p-2 bg-gray-50 rounded border-l-2 border-gray-200">
+                <div key={i} className="text-xs p-2 bg-gray-50 rounded border-l-2 border-gray-200 mb-2">
                   <div className="font-semibold text-gray-900 mb-1">
                     {pos.latitude.toFixed(4)}, {pos.longitude.toFixed(4)}
                   </div>
@@ -174,7 +195,7 @@ export default function DebugPanel() {
             </div>
             <div className="max-h-48 overflow-y-auto">
               {interactions.slice(-10).reverse().map((interaction: any, i: number) => (
-                <div key={i} className="text-xs p-2 bg-gray-50 rounded border-l-2 border-gray-200">
+                <div key={i} className="text-xs p-2 bg-gray-50 rounded border-l-2 border-gray-200 mb-2">
                   <div className="font-semibold text-gray-900 mb-1">
                     {interaction.action === 'tap' ? '👆' : interaction.action === 'view' ? '👁' : '❌'}
                     {interaction.zoneName}
@@ -226,9 +247,15 @@ export default function DebugPanel() {
           <div className="flex gap-2">
             <button
               onClick={handleClearAll}
-              className="px-3 py-2 bg-red-100 text-white rounded text-sm hover:bg-red-200 transition"
+              className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition"
             >
               🗑️ Clear All
+            </button>
+            <button
+              onClick={handleExport}
+              className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition"
+            >
+              💾 Export
             </button>
           </div>
         </div>
