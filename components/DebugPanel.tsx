@@ -18,6 +18,14 @@ export default function DebugPanel() {
       alert('✅ All history cleared!');
     }
   }, []);
+    if (confirm('Clear all alert history, GPS history, and zone interactions?')) {
+      localStorage.removeItem('ztl-alert-history');
+      localStorage.removeItem('ztl-gps-history');
+      localStorage.removeItem('ztl-zone-interactions');
+      setExpanded(false);
+      alert('✅ All history cleared!');
+    }
+  }, []);
 
   const handleExport = useCallback(() => {
     const sessionData = {
