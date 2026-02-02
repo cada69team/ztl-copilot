@@ -8,21 +8,17 @@ export async function POST(req: NextRequest) {
     const { tier } = await req.json();
 
     const tiers = {
-      basic: {
-        name: 'Basic Plan',
-        priceId: process.env.STRIPE_PRICE_BASIC || 'price_1',
-        amount: 0,
-      },
+      // basic: {
+      //   name: 'Basic Plan',
+      //   priceId: process.env.STRIPE_PRICE_BASIC || 'price_1',
+      //   amount: 0,
+      // },
       premium: {
         name: 'Premium Plan',
         priceId: process.env.STRIPE_PRICE_PREMIUM || 'price_1',
         amount: 499,
-      },
-      lifetime: {
-        name: 'Lifetime Premium',
-        priceId: process.env.STRIPE_PRICE_LIFETIME || 'price_1',
-        amount: 1999,
       }
+      
     };
 
     const selectedTier = tiers[tier as keyof typeof tiers];
@@ -63,5 +59,5 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export type Tier = 'basic' | 'premium' | 'lifetime';
+export type Tier = /*'basic' |*/ 'premium';
 

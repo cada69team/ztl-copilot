@@ -6,8 +6,8 @@ import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
 import DebugPanel from "@/components/DebugPanel";
 import { ToastContainer, toast } from 'react-toastify';
-import Toast from "@/components/Toast";
-import {useToast} from "@/hooks/useToast";
+// import Toast from "@/components/Toast";
+// import {useToast} from "@/hooks/useToast";
  
 
 interface ZoneFeature {
@@ -238,7 +238,7 @@ export default function ZtlMap() {
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [debugPanelExpanded, setDebugPanelExpanded] = useState(false);
-  const { toasts,  dismissToast,  showAlert,  showZone,  showWarning } = useToast();
+ // const { toasts,  dismissToast,  showAlert,  showZone,  showWarning } = useToast();
   const mainAlertFreePlan=10000;
 
   // Auto-dismiss zone info modal after 8 seconds
@@ -303,7 +303,7 @@ export default function ZtlMap() {
                                 type: "warning"                             
                                 });
     }
-  }, [showZone]);
+  }, [/*showZone*/]);
 
   const handlePositionUpdate = useCallback((position: [number, number] | null) => {
     setGpsPosition(position);
@@ -440,7 +440,7 @@ export default function ZtlMap() {
                                 });
     }
 
-  }, [alertCount, showUpgradePrompt,showAlert, showWarning]);
+  }, [alertCount, showUpgradePrompt /*,showAlert, showWarning*/]);
 
   const handleDismissAlert = useCallback(() => {
     console.log("👆 Alert dismissed by user");
@@ -909,7 +909,7 @@ export default function ZtlMap() {
       )} */}
 
       {/* ZONE DETAILS MODAL */}
-      {/* {selectedZone && (
+      {selectedZone && (
         <div className="fixed inset-0 flex items-center justify-center z-[1500]">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
             <div className="flex justify-between items-start mb-4">
@@ -960,7 +960,7 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )} */}
+      )}
 
       {/* UPGRADE PROMPT */}
       {showUpgradePrompt && !selectedZone && (
@@ -986,7 +986,7 @@ export default function ZtlMap() {
       )}
 
       {/* HEADER WITH STATUS BADGES */}
-      {/* <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
@@ -1011,7 +1011,7 @@ export default function ZtlMap() {
             Upgrade to Premium
           </button>
         </div>
-      </div> */}
+      </div> 
 
       {/* MAP CONTROLS */}
       {/* <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-[1000]">

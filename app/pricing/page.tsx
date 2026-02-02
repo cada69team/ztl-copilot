@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 export default function Pricing() {
-  const [tier, setTier] = useState<'basic' | 'premium' | 'lifetime'>('premium');
+  const [tier, setTier] = useState<'basic' | 'premium'>('premium'); // | 'lifetime'>('premium');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -14,9 +14,9 @@ export default function Pricing() {
       price: 'Free',
       features: [
         '3 ZTL alerts per day',
-        'Basic map view',
+        // 'Basic map view',
         'No GPS tracking',
-        'Ad-supported'
+        // 'Ad-supported'
       ]
     },
     premium: {
@@ -25,28 +25,28 @@ export default function Pricing() {
       features: [
         'UNLIMITED ZTL alerts',
         'Real-time GPS tracking',
-        'Voice alerts (siren/chime/silent)',
-        'Premium map view with traffic',
+        'Sound alert (siren/silent)',
+        // 'Premium map view with traffic',
         'Priority support',
-        '30-day money back guarantee'
+        // '30-day money back guarantee'
       ]
-    },
-    lifetime: {
-      name: 'Lifetime Premium',
-      price: '€19.99',
-      priceYearly: '€1.67/month',
-      features: [
-        'Lifetime access',
-        'All Premium features',
-        'No recurring charges',
-        'Best value',
-        'One-time payment',
-        '30-day money back guarantee'
-      ]
-    }
+     },
+    // lifetime: {
+    //   name: 'Lifetime Premium',
+    //   price: '€19.99',
+    //   priceYearly: '€1.67/month',
+    //   features: [
+    //     'Lifetime access',
+    //     'All Premium features',
+    //     'No recurring charges',
+    //     'Best value',
+    //     'One-time payment',
+    //     '30-day money back guarantee'
+    //   ]
+    // }
   };
 
-  const handleCheckout = async (selectedTier: 'basic' | 'premium' | 'lifetime') => {
+  const handleCheckout = async (selectedTier: 'basic' | 'premium') => {
     setIsProcessing(true);
     setError(null);
 
@@ -161,7 +161,7 @@ export default function Pricing() {
             </div>
           </div>
 
-          <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'lifetime' ? 'border-purple-500 ring-4 ring-purple-500 ring-opacity-20' : 'border-gray-100'}`}>
+         {/* <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'lifetime' ? 'border-purple-500 ring-4 ring-purple-500 ring-opacity-20' : 'border-gray-100'}`}>
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Lifetime</h2>
               <div className="flex items-center gap-2 mb-4">
@@ -172,16 +172,16 @@ export default function Pricing() {
                 Equivalent to <span className="font-semibold text-purple-600">€1.67/month</span>
               </p>
 
-              <ul className="space-y-3 mb-6">
+               <ul className="space-y-3 mb-6">
                 {pricing.lifetime.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
                       <span className="text-purple-500">✓</span>
                       <span className="text-gray-700">{feature}</span>
                     </li>
                 ))}
-              </ul>
+              </ul> */}
 
-              <button
+              {/* <button
                 onClick={() => handleCheckout('lifetime')}
                 disabled={isProcessing}
                 className={`w-full py-3 px-6 font-medium rounded-lg transition ${
@@ -191,9 +191,9 @@ export default function Pricing() {
                 }`}
               >
                 {isProcessing ? 'Processing...' : 'Get Lifetime'}
-              </button>
+              </button> 
             </div>
-          </div>
+          </div>*/}
         </div>
 
         <div className="mt-8 p-6 bg-white rounded-2xl shadow-lg">
