@@ -1,10 +1,10 @@
 "use client"
-"use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { MapContainer, TileLayer, Polygon, Marker, useMap, ZoomControl } from "react-leaflet";
 import * as turf from "@turf/turf";
 import { isZoneActive } from "@/hooks/useZtlStatus";
+import DebugPanel from "@/components/DebugPanel";
 
 interface ZoneFeature {
   type: string;
@@ -793,6 +793,9 @@ export default function ZtlMap() {
           })}
         </MapContainer>
       )}
+
+      {/* DEBUG PANEL */}
+    <DebugPanel />
 
       {/* ALERT BANNER */}
       {isAlert && (
