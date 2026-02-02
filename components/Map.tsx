@@ -830,7 +830,7 @@ export default function ZtlMap() {
       )}
           {/* TOAST NOTIFICATIONS */}
        {/* <Toast toasts={toasts} onDismiss={dismissToast} />  */}
-       <ToastContainer />
+       <ToastContainer limit={2} />
 
       {/* MAP */}
       {mapReady && ztlZones && (
