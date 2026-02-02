@@ -36,6 +36,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
   const watcherIdRef = useRef<number | null>(null);
+  const alertFreePlan=10000;
 
   useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
@@ -81,12 +82,18 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
         let minDistance = Infinity;
 
         for (const zone of ztlZones.features) {
-          const polygon = turf.polygon(zone.geometry.coordinates);
-          const distance = turf.pointToPolygonDistance(pt, polygon);
-          if (distance < minDistance && distance < 1) {
-            minDistance = distance;
-            nearest = zone;
+          try{
+             const polygon = turf.polygon(zone.geometry.coordinates);
+             const distance = turf.pointToPolygonDistance(pt, polygon);
+             if (distance < minDistance && distance < 1) {
+              minDistance = distance;
+              nearest = zone;
+             }
+
+          }catch{
+
           }
+         
         }
 
         if (nearest && nearest.properties) {
@@ -102,9 +109,17 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
         const insideZone = minDistance < 0.02;
 
         const activeViolations = ztlZones.features.filter((zone: any) => {
-          const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
-          const isActiveNow = isZoneActive(zone.properties.name);
-          return isInside && isActiveNow;
+          try{
+              const isInside = turf.booleanPointInPolygon(pt, turf.polygon(zone.geometry.coordinates));
+              //const isActiveNow =   isZoneActive(zone.properties.name);
+             // return isInside && isActiveNow;
+             return isInside;
+
+          }catch{
+
+            return false;
+          }
+        
         });
 
         if (activeViolations.length > 0) {
@@ -115,7 +130,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const city = zone.properties.city;
           const name = zone.properties.name;
           const fine = zone.properties.fine;
-          const remaining = 3 - newCount;
+          const remaining = alertFreePlan- newCount;
 
           const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
 
@@ -125,7 +140,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching200m && alertCountRef.current < 3 && nearest) {
+        } else if (approaching200m && alertCountRef.current < alertFreePlan && nearest) {
           onAlertIncrement();
           const newCount = alertCountRef.current + 1;
 
@@ -133,7 +148,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const nearestCity = nearestZone.properties.city;
           const nearestName = nearestZone.properties.name;
           const distStr = distInMeters.toFixed(0);
-          const remaining = 3 - newCount;
+          const remaining = alertFreePlan - newCount;
 
           const alertMessage = `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
 
@@ -143,12 +158,12 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching100m && alertCountRef.current < 3) {
+        } else if (approaching100m && alertCountRef.current < alertFreePlan) {
           onAlertIncrement();
           const newCount = alertCountRef.current + 1;
 
           const distStr = distInMeters.toFixed(0);
-          const remaining = 3 - newCount;
+          const remaining = alertFreePlan - newCount;
 
           const alertMessage = `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
 
@@ -158,12 +173,12 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
             siren.currentTime = 0;
             siren.play().catch(() => {});
           }
-        } else if (approaching50m && alertCountRef.current < 3 && nearest) {
+        } else if (approaching50m && alertCountRef.current < alertFreePlan && nearest) {
           onAlertIncrement();
           const newCount = alertCountRef.current + 1;
 
           const distStr = distInMeters.toFixed(0);
-          const remaining = 3 - newCount;
+          const remaining = alertFreePlan - newCount;
 
           const alertMessage = `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`;
 
@@ -217,6 +232,7 @@ export default function ZtlMap() {
   const [selectedZone, setSelectedZone] = useState<ZoneFeature | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const mainAlertFreePlan=10000;
 
   // Auto-dismiss zone info modal after 8 seconds
   useEffect(() => {
@@ -349,7 +365,7 @@ export default function ZtlMap() {
     setIsAlert(active);
     setAlertMessage(message);
 
-    if (alertCount >= 3 && !showUpgradePrompt) {
+    if (alertCount >= mainAlertFreePlan && !showUpgradePrompt) {
       setShowUpgradePrompt(true);
     }
   }, [alertCount, showUpgradePrompt]);
