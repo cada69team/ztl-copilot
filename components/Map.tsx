@@ -138,7 +138,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const remaining = alertFreePlan- newCount;
 
           const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
-
+     
           onAlert(true, alertMessage);
 
           if (siren) {
@@ -156,7 +156,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const remaining = alertFreePlan - newCount;
 
           const alertMessage = `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
-
+          
           onAlert(true, alertMessage);
 
           if (alertSound === "siren" && siren) {
@@ -288,6 +288,8 @@ export default function ZtlMap() {
       // showWarning(  `📍 Nearest Zone: ${name}`,
       //   `City: ${city}\nPotential Fine: €${fine}\nStay alert!`,
       //   5000)
+
+      toast.clearWaitingQueue();
 
       toast( `City: ${city}\nPotential Fine: €${fine}\nStay alert!`,{
                                 position: "top-center",
@@ -422,6 +424,8 @@ export default function ZtlMap() {
       // } else if (message.includes('ZTL')) {
       //   showWarning('⚠️ ZTL Approaching', body, 6000);
       // }
+
+      toast.clearWaitingQueue();
       
       toast( body,{
                                 position: "top-center",
@@ -830,7 +834,7 @@ export default function ZtlMap() {
       )}
           {/* TOAST NOTIFICATIONS */}
        {/* <Toast toasts={toasts} onDismiss={dismissToast} />  */}
-       <ToastContainer limit={2} />
+       <ToastContainer limit={1} />
 
       {/* MAP */}
       {mapReady && ztlZones && (
