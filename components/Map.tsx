@@ -842,7 +842,7 @@ export default function ZtlMap() {
           center={center}
           zoom={zoom}
           className="h-[80%] w-full"
-          style={{ height: "80vh", width: "100%"}}
+          style={{ height: "80vh", width: "100%", borderRadius: "25px"}}
           whenReady={handleMapReady}
         >
           <TileLayer
@@ -908,10 +908,70 @@ export default function ZtlMap() {
         </div>
       )} */}
 
-      {/* ZONE DETAILS MODAL */}
+      {/* ZONE DETAILS MODAL
       {selectedZone && (
         <div className="fixed inset-0 flex items-center justify-center z-[1500]">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
+            <div className="flex justify-between items-start mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">{selectedZone.properties.city}</h2>
+              <button onClick={() => setSelectedZone(null)} className="text-gray-400 hover:text-gray-600 text-2xl">
+                ✕
+              </button>
+            </div>
+            <div className="text-xs text-gray-500 text-center mb-4">
+              ⏱️ Closes automatically in 8 seconds
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-1">{selectedZone.properties.name}</h3>
+                {selectedZone.properties.note && (
+                  <p className="text-gray-600 text-sm">{selectedZone.properties.note}</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-3xl font-bold text-blue-700">€{selectedZone.properties.fine}</p>
+                  <p className="text-sm text-gray-600">Potential fine</p>
+                </div>
+                <div className="bg-orange-50 p-3 rounded-lg">
+                  <p className="text-lg font-bold text-orange-700">Check hours</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedZone.properties.name === "Area C" ? "Mon-Fri 07:30-18:30" : "Check local signage"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <h4 className="font-bold text-gray-900 mb-2">Exceptions?</h4>
+                <ul className="space-y-1 text-sm text-gray-700">
+                  <li>• Residents with valid permit</li>
+                  <li>• Electric vehicles with charging plates</li>
+                  <li>• Emergency vehicles</li>
+                  <li>• Public transport (buses, taxis)</li>
+                  <li>• Disabled vehicles with valid exemption</li>
+                </ul>
+              </div>
+
+              <button onClick={handleUpgrade} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
+                Get Premium Permit
+              </button>
+            </div>
+          </div>
+        </div>
+      )} */}
+
+      {/* ZONE DETAILS MODAL */}
+      {selectedZone && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[1500] bg-black bg-opacity-50 backdrop-blur-sm"
+          onClick={() => setSelectedZone(null)}
+        >
+          <div 
+            className="bg-white p-6 rounded-2xl shadow-2xl max-w-md mx-4 animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-2xl font-bold text-gray-900">{selectedZone.properties.city}</h2>
               <button onClick={() => setSelectedZone(null)} className="text-gray-400 hover:text-gray-600 text-2xl">
@@ -986,7 +1046,7 @@ export default function ZtlMap() {
       )}
 
       {/* HEADER WITH STATUS BADGES */}
-      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]">
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]" style={{marginTop: '1em'}}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <button onClick={() => setShowSoundSettings(!showSoundSettings)} className="flex items-center gap-2 p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition">
@@ -1026,19 +1086,19 @@ export default function ZtlMap() {
         </button>
       </div> */}
 
-      <style jsx global>{`
-        @keyframes slideUp {
-          from {
-            transform: translateY(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
+        <style jsx global>{`
+      @keyframes slideUp {
+        from {
+          transform: translateY(100%);
+          opacity: 0;
         }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
 
-        @keyframes progress {
+      @keyframes progress {
         from {
           width: 100%;
         }
@@ -1047,10 +1107,25 @@ export default function ZtlMap() {
         }
       }
 
-      .animate-slide-up {
-          animation: slideUp 0.3s ease-out;
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
         }
-      `}</style>
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      .animate-slide-up {
+        animation: slideUp 0.3s ease-out;
+      }
+
+      .animate-fade-in {
+        animation: fadeIn 0.2s ease-out;
+      }
+    `}</style>
     </div>
   );
 }

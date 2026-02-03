@@ -5,6 +5,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import HomeIcon from '@mui/icons-material/Home';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import { Suspense } from 'react'
 
 export default function PaymentError() {
   const router = useRouter();
@@ -40,7 +41,10 @@ export default function PaymentError() {
 
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-left">
           <h2 className="text-sm font-semibold text-red-800 mb-2">Error Details</h2>
-          <p className="text-sm text-red-700">{errorMessage}</p>
+          <Suspense fallback={<p className="text-sm text-red-700">{errorMessage}</p>}>     
+  
+          </Suspense>
+          
         </div>
 
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
