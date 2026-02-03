@@ -5,12 +5,20 @@ import ErrorIcon from '@mui/icons-material/Error';
 import HomeIcon from '@mui/icons-material/Home';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
-import { Suspense } from 'react'
+import { Suspense } from 'react';
+
+// 1. Create a separate component for the part that uses searchParams
+function ErrorDetails() {
+  const searchParams = useSearchParams();
+  const errorMessage = searchParams.get('message') || 'An unexpected error occurred';
+
+  return (
+    <p className="text-sm text-red-700">{errorMessage}</p>
+  );
+}
 
 export default function PaymentError() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const errorMessage = searchParams.get('message') || 'An unexpected error occurred';
 
   const handleGoHome = () => {
     router.push('/');
@@ -41,8 +49,10 @@ export default function PaymentError() {
 
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 text-left">
           <h2 className="text-sm font-semibold text-red-800 mb-2">Error Details</h2>
-          <Suspense fallback={<p className="text-sm text-red-700">{errorMessage}</p>}>     
-  
+          
+          {/* 2. Wrap the new component in Suspense here */}
+          <Suspense fallback={<p className="text-sm text-red-700">Loading error details...</p>}>
+            <ErrorDetails />
           </Suspense>
           
         </div>
