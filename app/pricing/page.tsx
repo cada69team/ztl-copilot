@@ -1,9 +1,14 @@
 "use client";
 
+import { Route } from 'lucide-react';
+import { redirect } from 'next/dist/server/api-utils';
 import { useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
+ 
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+
 
 export default function Pricing() {
-  const [tier, setTier] = useState<'basic' | 'premium'>('premium'); // | 'lifetime'>('premium');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -14,9 +19,7 @@ export default function Pricing() {
       price: 'Free',
       features: [
         '3 ZTL alerts per day',
-        // 'Basic map view',
         'No GPS tracking',
-        // 'Ad-supported'
       ]
     },
     premium: {
@@ -26,24 +29,9 @@ export default function Pricing() {
         'UNLIMITED ZTL alerts',
         'Real-time GPS tracking',
         'Sound alert (siren/silent)',
-        // 'Premium map view with traffic',
         'Priority support',
-        // '30-day money back guarantee'
       ]
-     },
-    // lifetime: {
-    //   name: 'Lifetime Premium',
-    //   price: '€19.99',
-    //   priceYearly: '€1.67/month',
-    //   features: [
-    //     'Lifetime access',
-    //     'All Premium features',
-    //     'No recurring charges',
-    //     'Best value',
-    //     'One-time payment',
-    //     '30-day money back guarantee'
-    //   ]
-    // }
+    },
   };
 
   const handleCheckout = async (selectedTier: 'basic' | 'premium') => {
@@ -56,24 +44,32 @@ export default function Pricing() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tier: selectedTier }),
+        body: JSON.stringify({ 
+          tier: selectedTier, 
+          email: 'test@email.com' 
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create checkout session');
+      }
 
       const data = await response.json();
 
       if (data.error) {
         setError(data.error);
-      } else if (data.sessionId) {
-        const stripe = (window as any).Stripe;
-        const { error } = await stripe.redirectToCheckout({
-          sessionId: data.sessionId,
-        });
+        return;
+      }
 
-        if (error) {
-          setError(error.message || 'Failed to redirect to Stripe');
-        }
+      // Nuovo metodo: reindirizza direttamente usando l'URL di Stripe
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError('No checkout URL received');
       }
     } catch (err: any) {
+      console.error('Checkout error:', err);
       setError(err.message || 'Failed to process checkout');
     } finally {
       setIsProcessing(false);
@@ -105,7 +101,7 @@ export default function Pricing() {
           </div>
         )}
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-100 overflow-hidden">
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Basic</h2>
@@ -114,10 +110,10 @@ export default function Pricing() {
 
               <ul className="space-y-3 mb-6">
                 {pricing.basic.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2">
-                      <span className="text-gray-400">✕</span>
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
+                  <li key={feature} className="flex items-start gap-2">
+                    <span className="text-gray-400">✕</span>
+                    <span className="text-gray-700">{feature}</span>
+                  </li>
                 ))}
               </ul>
 
@@ -130,7 +126,7 @@ export default function Pricing() {
             </div>
           </div>
 
-          <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'premium' ? 'border-blue-500 ring-4 ring-blue-500 ring-opacity-20' : 'border-gray-100'}`}>
+          <div className="bg-white rounded-2xl shadow-lg border-2 border-blue-500 ring-4 ring-blue-500 ring-opacity-20 overflow-hidden">
             <div className="p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Premium</h2>
               <div className="flex items-center gap-2 mb-4">
@@ -140,10 +136,10 @@ export default function Pricing() {
 
               <ul className="space-y-3 mb-6">
                 {pricing.premium.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2">
-                      <span className="text-green-500">✓</span>
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
+                  <li key={feature} className="flex items-start gap-2">
+                    <span className="text-green-500">✓</span>
+                    <span className="text-gray-700">{feature}</span>
+                  </li>
                 ))}
               </ul>
 
@@ -160,40 +156,6 @@ export default function Pricing() {
               </button>
             </div>
           </div>
-
-         {/* <div className={`bg-white rounded-2xl shadow-lg border-2 overflow-hidden ${tier === 'lifetime' ? 'border-purple-500 ring-4 ring-purple-500 ring-opacity-20' : 'border-gray-100'}`}>
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Lifetime</h2>
-              <div className="flex items-center gap-2 mb-4">
-                <p className="text-4xl font-bold text-purple-600">€19.99</p>
-                <p className="text-sm text-gray-500">(best value)</p>
-              </div>
-              <p className="text-sm text-gray-500 mb-4">
-                Equivalent to <span className="font-semibold text-purple-600">€1.67/month</span>
-              </p>
-
-               <ul className="space-y-3 mb-6">
-                {pricing.lifetime.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2">
-                      <span className="text-purple-500">✓</span>
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
-                ))}
-              </ul> */}
-
-              {/* <button
-                onClick={() => handleCheckout('lifetime')}
-                disabled={isProcessing}
-                className={`w-full py-3 px-6 font-medium rounded-lg transition ${
-                  isProcessing
-                    ? 'bg-gray-400 text-white cursor-wait'
-                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white cursor-pointer'
-                }`}
-              >
-                {isProcessing ? 'Processing...' : 'Get Lifetime'}
-              </button> 
-            </div>
-          </div>*/}
         </div>
 
         <div className="mt-8 p-6 bg-white rounded-2xl shadow-lg">
@@ -209,7 +171,7 @@ export default function Pricing() {
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-blue-900 mb-2">Premium & Lifetime</h3>
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">Premium</h3>
               <ul className="space-y-2 text-sm text-gray-700">
                 <li>• <span className="font-bold">UNLIMITED</span> ZTL alerts</li>
                 <li>• <span className="font-bold">Real-time</span> GPS tracking</li>

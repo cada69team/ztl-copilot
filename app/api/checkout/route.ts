@@ -2,23 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+ 
 
 export async function POST(req: NextRequest) {
   try {
-    const { tier } = await req.json();
+    const { tier, email } = await req.json();
 
     const tiers = {
-      // basic: {
-      //   name: 'Basic Plan',
-      //   priceId: process.env.STRIPE_PRICE_BASIC || 'price_1',
-      //   amount: 0,
-      // },
       premium: {
         name: 'Premium Plan',
-        priceId: process.env.STRIPE_PRICE_PREMIUM || 'price_1',
+        priceId: process.env.STRIPE_PRICE_PREMIUM || '',
         amount: 499,
       }
-      
     };
 
     const selectedTier = tiers[tier as keyof typeof tiers];
@@ -26,6 +21,11 @@ export async function POST(req: NextRequest) {
     if (!selectedTier) {
       return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
     }
+
+    // const baseUrl = process.env.NEXT_PUBLIC_URL || 
+    //                 (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+    const baseUrl = process.env.NEXT_PUBLIC_URL || "";
 
     const session = await stripe.checkout.sessions.create({
       line_items: [
@@ -35,20 +35,19 @@ export async function POST(req: NextRequest) {
         },
       ],
       mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_URL || ''}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_URL || ''}/payment/cancel?tier=${tier}`,
-      customer_email: 'customer@example.com',
+      success_url: `${baseUrl}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/pricing/cancel?tier=${tier}`,
+      customer_email: email,
       metadata: {
         tier: tier,
         userId: req.cookies.get('user-id')?.value || 'anonymous',
       },
     });
 
+    // Restituisci l'URL della checkout session
     return NextResponse.json({
+      url: session.url,
       sessionId: session.id,
-      publicKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
-      tier: selectedTier.name,
-      amount: selectedTier.amount,
     });
   } catch (error: any) {
     console.error('Stripe checkout error:', error);
@@ -59,5 +58,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export type Tier = /*'basic' |*/ 'premium';
+export type Tier = 'premium';
+
+ 
 
