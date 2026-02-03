@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react'; // Added Suspense
 import { useSearchParams, useRouter } from 'next/navigation';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HomeIcon from '@mui/icons-material/Home';
 
-export default function PaymentSuccess() {
+// 1. Move your existing logic into this inner component
+function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(true);
@@ -158,5 +159,26 @@ export default function PaymentSuccess() {
         )}
       </div>
     </div>
+  );
+}
+
+// 2. Create the default export wrapper with Suspense
+export default function PaymentSuccess() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 text-center">
+          <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-2 border-green-600"></div>
+          <h1 className="text-2xl font-bold text-gray-800 mt-6">
+            Processing Payment...
+          </h1>
+          <p className="text-gray-600">
+            Please wait while we confirm your payment
+          </p>
+        </div>
+      </div>
+    }>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }
