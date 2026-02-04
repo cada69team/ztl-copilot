@@ -242,6 +242,7 @@ export default function ZtlMap() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [debugPanelExpanded, setDebugPanelExpanded] = useState(false);
  // const { toasts,  dismissToast,  showAlert,  showZone,  showWarning } = useToast();
+  const premiumPlan  =localStorage.getItem('payment_session')?.trim();
   const isFreePlan = !(localStorage.getItem('payment_session')?.trim()!="") ;
   const mainAlertFreePlan= isFreePlan ? 3 : 10000000;
 
@@ -1079,6 +1080,12 @@ export default function ZtlMap() {
                 <span className={`px-2 py-1 rounded text-xs font-semibold ${zonesLoaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {zonesLoaded ? `✓ ${zonesCount} Zones` : '✗ 0 Zones'}
                 </span>
+              </div>
+              <div>
+                 <span className={`px-2 py-1 rounded text-xs font-semibold  bg-green-100 text-black-700' `}>
+                  {premiumPlan}
+                </span>
+                
               </div>
             </div>
           </div>
