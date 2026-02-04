@@ -40,8 +40,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
   const watcherIdRef = useRef<number | null>(null);
-  
-  const alertFreePlan=10000;
+  const isFreePlan= !(localStorage.getItem('payment_session')?.trim()!="");
+  const alertFreePlan=isFreePlan ? 3:10000000;
 
   useEffect(() => {
     const sirenAudio = new Audio("/siren.mp3");
@@ -137,7 +137,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const fine = zone.properties.fine;
           const remaining = alertFreePlan- newCount;
 
-          const alertMessage = `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today`;
+          const alertMessage = isFreePlan ? `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today` : `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n`;
      
           onAlert(true, alertMessage);
 
@@ -155,7 +155,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const distStr = distInMeters.toFixed(0);
           const remaining = alertFreePlan - newCount;
 
-          const alertMessage = `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`;
+          const alertMessage = isFreePlan ? `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`
+                               :`ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid`;
           
           onAlert(true, alertMessage);
 
@@ -170,7 +171,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const distStr = distInMeters.toFixed(0);
           const remaining = alertFreePlan - newCount;
 
-          const alertMessage = `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`;
+          const alertMessage = isFreePlan ? `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`
+                                          : `ZTL ${distStr}m ahead\nPrepare to turn`;
 
           onAlert(true, alertMessage);
 
@@ -185,7 +187,8 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
           const distStr = distInMeters.toFixed(0);
           const remaining = alertFreePlan - newCount;
 
-          const alertMessage = `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`;
+          const alertMessage = isFreePlan ? `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`
+                                : `ZTL ${distStr}m ahead\nTURN NOW`;
 
           onAlert(true, alertMessage);
 
@@ -239,7 +242,8 @@ export default function ZtlMap() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [debugPanelExpanded, setDebugPanelExpanded] = useState(false);
  // const { toasts,  dismissToast,  showAlert,  showZone,  showWarning } = useToast();
-  const mainAlertFreePlan=10000;
+  const isFreePlan = !(localStorage.getItem('payment_session')?.trim()!="") ;
+  const mainAlertFreePlan= isFreePlan ? 3 : 10000000;
 
   // Auto-dismiss zone info modal after 8 seconds
   useEffect(() => {
@@ -558,6 +562,18 @@ export default function ZtlMap() {
 
   return (
     <div className="h-screen w-full bg-white">
+
+      {isFreePlan && (
+            
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]" style={{marginTop: '1em'}}>
+        <div className="flex items-center justify-between max-w-7xl mx-auto">        
+            <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
+              Upgrade to Premium
+            </button>
+       
+        </div>
+      </div> 
+      )}
       {/* EXPANDED DIAGNOSTIC CONSOLE */}
       {/* <div className="fixed bottom-4 left-4 p-3 bg-black/95 text-white rounded-lg z-[4000] text-xs font-mono max-w-sm overflow-y-auto max-h-48">
         <div className="font-bold text-yellow-300 mb-2">📊 DIAGNOSTIC CONSOLE</div>
@@ -618,7 +634,7 @@ export default function ZtlMap() {
       )} */}
 
       {/* INSTALL INSTRUCTIONS MODAL */}
-      {/* {showInstallInstructions && (
+      {showInstallInstructions && (
         <div className="fixed inset-0 flex items-center justify-center z-[2000] bg-black/50 backdrop-blur-sm">
           <div className="bg-white p-6 rounded-2xl shadow-2xl max-w-md">
             <div className="flex justify-between items-start mb-4">
@@ -671,7 +687,7 @@ export default function ZtlMap() {
             </div>
           </div>
         </div>
-      )} */}
+      )} 
 
       {/* SOUND SETTINGS MODAL */}
       {showSoundSettings && (
@@ -1023,7 +1039,7 @@ export default function ZtlMap() {
       )}
 
       {/* UPGRADE PROMPT */}
-      {showUpgradePrompt && !selectedZone && (
+      {showUpgradePrompt && isFreePlan && !selectedZone && (
         <div className="fixed inset-0 flex items-center justify-center z-[1999]">
           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md">
             <div className="text-center">
@@ -1066,25 +1082,10 @@ export default function ZtlMap() {
               </div>
             </div>
           </div>
-
-          <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
-            Upgrade to Premium
-          </button>
         </div>
       </div> 
 
-      {/* MAP CONTROLS */}
-      {/* <div className="fixed bottom-20 right-4 flex flex-col gap-2 z-[1000]">
-        <button onClick={handleZoomIn} className="bg-white shadow-lg rounded-lg p-2 text-blue-600 hover:bg-blue-50 text-xl">
-          +
-        </button>
-        <button onClick={handleZoomOut} className="bg-white shadow-lg rounded-lg p-2 text-blue-600 hover:bg-blue-50 text-xl">
-          −
-        </button>
-        <button onClick={handleCenterMap} className="bg-white shadow-lg rounded-lg p-2 text-green-600 hover:bg-green-50 text-xl">
-          ⌖
-        </button>
-      </div> */}
+  
 
         <style jsx global>{`
       @keyframes slideUp {
@@ -1097,7 +1098,6 @@ export default function ZtlMap() {
           opacity: 1;
         }
       }
-
       @keyframes progress {
         from {
           width: 100%;
@@ -1106,7 +1106,6 @@ export default function ZtlMap() {
           width: 0%;
         }
       }
-
       @keyframes fadeIn {
         from {
           opacity: 0;
@@ -1117,7 +1116,6 @@ export default function ZtlMap() {
           transform: scale(1);
         }
       }
-
       .animate-slide-up {
         animation: slideUp 0.3s ease-out;
       }
