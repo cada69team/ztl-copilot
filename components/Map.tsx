@@ -40,7 +40,13 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
   const watcherIdRef = useRef<number | null>(null);
-  const isFreePlan= !(localStorage.getItem('payment_session')?.trim()!="");
+
+ // Fix bubbling: track last alert to prevent duplicates
+  const lastAlertTypeRef = useRef<string | null>(null);
+  const lastAlertTimeRef = useRef<number>(0);
+  const lastNearestZoneRef = useRef<string | null>(null);
+
+  const isFreePlan= (localStorage.getItem('payment_session') == null) ;
   const alertFreePlan=isFreePlan ? 3:10000000;
 
   useEffect(() => {
@@ -101,9 +107,19 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
          
         }
 
+        // Only call onNearestZone if zone changed AND not in active alert
         if (nearest && nearest.properties) {
-          console.log("✅ LocationMarker: Nearest zone found:", nearest.properties.name);
-          onNearestZone(nearest);
+          const zoneName = nearest.properties.name;
+          console.log("✅ LocationMarker: Nearest zone found:", zoneName);
+          
+          // Update nearest zone reference
+          if (lastNearestZoneRef.current !== zoneName) {
+            lastNearestZoneRef.current = zoneName;
+            // Only show nearest zone toast if NOT in alert state
+            // We'll handle this in the main logic below
+          }
+        } else {
+          lastNearestZoneRef.current = null;
         }
 
         const distInMeters = minDistance * 1000;
@@ -127,77 +143,152 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
         
         });
 
+        // Debounce: prevent alerts more frequent than 3 seconds
+        const now = Date.now();
+        const timeSinceLastAlert = now - lastAlertTimeRef.current;
+        const shouldDebounce = timeSinceLastAlert < 3000; // 3 seconds minimum between alerts
+
         if (activeViolations.length > 0) {
           const zone = activeViolations[0];
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
+          const alertType = 'inside';
+          
+          // Only alert if this is a new alert type OR enough time passed
+          if (lastAlertTypeRef.current !== alertType || !shouldDebounce) {
+            lastAlertTypeRef.current = alertType;
+            lastAlertTimeRef.current = now;
+            
+            onAlertIncrement();
+            const newCount = alertCountRef.current + 1;
 
-          const city = zone.properties.city;
-          const name = zone.properties.name;
-          const fine = zone.properties.fine;
-          const remaining = alertFreePlan- newCount;
+            const city = zone.properties.city;
+            const name = zone.properties.name;
+            const fine = zone.properties.fine;
+            const remaining = alertFreePlan- newCount;
 
-          const alertMessage = isFreePlan ? `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today` : `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n`;
-     
-          onAlert(true, alertMessage);
+            if(remaining> 0){
 
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
+              const alertMessage = isFreePlan ? `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n${remaining} free alerts remaining today` : `INSIDE ZTL in ${city}\nZone: ${name}\nFine: €${fine}\n`;
+        
+              onAlert(true, alertMessage);
+
+              if (siren) {
+                siren.currentTime = 0;
+                siren.play().catch(() => {});
+              }
+            }
+
+         
           }
         } else if (approaching200m && alertCountRef.current < alertFreePlan && nearest) {
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
-
-          const nearestZone = nearest as any;
-          const nearestCity = nearestZone.properties.city;
-          const nearestName = nearestZone.properties.name;
-          const distStr = distInMeters.toFixed(0);
-          const remaining = alertFreePlan - newCount;
-
-          const alertMessage = isFreePlan ? `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`
-                               :`ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid`;
+          const alertType = 'approaching200m';
           
-          onAlert(true, alertMessage);
+          if (lastAlertTypeRef.current !== alertType || !shouldDebounce) {
+            lastAlertTypeRef.current = alertType;
+            lastAlertTimeRef.current = now;
+            
+            onAlertIncrement();
+            const newCount = alertCountRef.current + 1;
 
-          if (alertSound === "siren" && siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
+            const nearestZone = nearest as any;
+            const nearestCity = nearestZone.properties.city;
+            const nearestName = nearestZone.properties.name;
+            const distStr = distInMeters.toFixed(0);
+            const remaining = alertFreePlan - newCount;
+
+            if(remaining>0){
+
+                 const alertMessage = isFreePlan ? `ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid\n${remaining} free alerts remaining today`
+                                 :`ZTL in ${distStr}m\n${nearestCity} - ${nearestName}\nTurn right in 150m to avoid`;
+            
+                  onAlert(true, alertMessage);
+                  
+                  // Show nearest zone toast ONLY here, not separately
+                  onNearestZone(nearest);
+
+                  if (alertSound === "siren" && siren) {
+                    siren.currentTime = 0;
+                    siren.play().catch(() => {});
+                  }
+
+            }
+
+         
           }
         } else if (approaching100m && alertCountRef.current < alertFreePlan) {
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
+          const alertType = 'approaching100m';
+          
+          if (lastAlertTypeRef.current !== alertType || !shouldDebounce) {
+            lastAlertTypeRef.current = alertType;
+            lastAlertTimeRef.current = now;
+            
+            onAlertIncrement();
+            const newCount = alertCountRef.current + 1;
 
-          const distStr = distInMeters.toFixed(0);
-          const remaining = alertFreePlan - newCount;
+            const distStr = distInMeters.toFixed(0);
+            const remaining = alertFreePlan - newCount;
 
-          const alertMessage = isFreePlan ? `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`
-                                          : `ZTL ${distStr}m ahead\nPrepare to turn`;
+            if(remaining>0){
+                const alertMessage = isFreePlan ? `ZTL ${distStr}m ahead\nPrepare to turn\n${remaining} free alerts remaining today`
+                                                : `ZTL ${distStr}m ahead\nPrepare to turn`;
 
-          onAlert(true, alertMessage);
+                onAlert(true, alertMessage);
 
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
+                if (siren) {
+                  siren.currentTime = 0;
+                  siren.play().catch(() => {});
+                }
+
+            }
+
+         
           }
         } else if (approaching50m && alertCountRef.current < alertFreePlan && nearest) {
-          onAlertIncrement();
-          const newCount = alertCountRef.current + 1;
+          const alertType = 'approaching50m';
+          
+          if (lastAlertTypeRef.current !== alertType || !shouldDebounce) {
+            lastAlertTypeRef.current = alertType;
+            lastAlertTimeRef.current = now;
+            
+            onAlertIncrement();
+            const newCount = alertCountRef.current + 1;
 
-          const distStr = distInMeters.toFixed(0);
-          const remaining = alertFreePlan - newCount;
+            const distStr = distInMeters.toFixed(0);
+            const remaining = alertFreePlan - newCount;
 
-          const alertMessage = isFreePlan ? `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`
-                                : `ZTL ${distStr}m ahead\nTURN NOW`;
+            if(remaining>0){
+                  const alertMessage = isFreePlan ? `ZTL ${distStr}m ahead\nTURN NOW\n${remaining} free alerts remaining today`
+                                        : `ZTL ${distStr}m ahead\nTURN NOW`;
 
-          onAlert(true, alertMessage);
+                  onAlert(true, alertMessage);
 
-          if (siren) {
-            siren.currentTime = 0;
-            siren.play().catch(() => {});
+                  if (siren) {
+                    siren.currentTime = 0;
+                    siren.play().catch(() => {});
+                  }
+
+            }
+
+      
           }
         } else {
-          onAlert(false);
+          // Clear alert state when not in any alert zone
+          if (lastAlertTypeRef.current !== null) {
+            lastAlertTypeRef.current = null;
+            onAlert(false);
+          }
+          
+          // Show nearest zone toast ONLY when not in alert and zone changed
+          if (nearest && nearest.properties && 
+              lastNearestZoneRef.current === nearest.properties.name &&
+              timeSinceLastAlert > 5000) { // Show nearest zone max once per 5 seconds
+                const newCount = alertCountRef.current + 1;
+                const remaining = alertFreePlan - newCount;
+                if (remaining>0){
+                  onNearestZone(nearest);
+                  lastAlertTimeRef.current = now;
+                }
+        
+          }
         }
 
         if (map) {
@@ -242,8 +333,8 @@ export default function ZtlMap() {
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [debugPanelExpanded, setDebugPanelExpanded] = useState(false);
  // const { toasts,  dismissToast,  showAlert,  showZone,  showWarning } = useToast();
-  const premiumPlan  =localStorage.getItem('payment_session')?.trim();
-  const isFreePlan = !(localStorage.getItem('payment_session')?.trim()!="") ;
+ 
+  const isFreePlan = (localStorage.getItem('payment_session') == null) ;
   const mainAlertFreePlan= isFreePlan ? 3 : 10000000;
 
   // Auto-dismiss zone info modal after 8 seconds
@@ -564,9 +655,8 @@ export default function ZtlMap() {
   return (
     <div className="h-screen w-full bg-white">
 
-      {isFreePlan && (
-            
-      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]" style={{marginTop: '1em'}}>
+      {isFreePlan && (            
+      <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]" style={{marginTop: '1em', marginBottom: '1em'}}>
         <div className="flex items-center justify-between max-w-7xl mx-auto">        
             <button onClick={handleUpgrade} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
               Upgrade to Premium
@@ -982,7 +1072,7 @@ export default function ZtlMap() {
       {/* ZONE DETAILS MODAL */}
       {selectedZone && (
         <div 
-          className="fixed inset-0 flex items-center justify-center z-[1500] bg-black bg-opacity-50 backdrop-blur-sm"
+          className="fixed inset-0 flex items-center justify-center z-[9999] bg-black bg-opacity-50 backdrop-blur-sm"
           onClick={() => setSelectedZone(null)}
         >
           <div 
@@ -1031,9 +1121,9 @@ export default function ZtlMap() {
                 </ul>
               </div>
 
-              <button onClick={handleUpgrade} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
+              {/* <button onClick={handleUpgrade} className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition">
                 Get Premium Permit
-              </button>
+              </button> */}
             </div>
           </div>
         </div>
@@ -1072,21 +1162,21 @@ export default function ZtlMap() {
               </span>
             </button>
             <div>
-              <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026</h2>
+              <h2 className="font-bold text-sm text-gray-900">Olympic Shield 2026 {isFreePlan ? " - Free plan with 3 alerts!": " - Premium plan, ulimited alerts!"}</h2>
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 rounded text-xs font-semibold ${mapReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                   {mapReady ? '✓ Map Ready' : '⏳ Loading'}
                 </span>
-                <span className={`px-2 py-1 rounded text-xs font-semibold ${zonesLoaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {/* <span className={`px-2 py-1 rounded text-xs font-semibold ${zonesLoaded ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {zonesLoaded ? `✓ ${zonesCount} Zones` : '✗ 0 Zones'}
-                </span>
+                </span> */}
               </div>
-              <div>
+              {/* <div>
                  <span className={`px-2 py-1 rounded text-xs font-semibold  bg-green-100 text-black-700' `}>
                   {premiumPlan}
                 </span>
                 
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
