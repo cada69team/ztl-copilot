@@ -75,7 +75,7 @@ export default function Pricing() {
     }
   };
 
-  const onInput = (event: Event) => {
+  const onInput = (event: React.FormEvent<HTMLInputElement>) => {
       const { value } = event.target as unknown as { value: string };
       setEmail(value);
   };
