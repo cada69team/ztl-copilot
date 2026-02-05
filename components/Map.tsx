@@ -786,14 +786,19 @@ export default function ZtlMap() {
               Upgrade to Premium
             </button>
           </div>
-          <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]" style={{ marginTop: '1em', marginBottom: '1em' }}>
+
+
+        </div>
+      )}
+
+       <div className="fixed top-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-[1000]" style={{ marginTop: '1em', marginBottom: '1em' }}>
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
             <button onClick={handleInstallToast} className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold text-sm hover:from-blue-700 hover:to-purple-700 transition shadow-md">
               Installing instructions
             </button>
           </div>
+       </div>
 
-        </div>
-      )}
       {/* EXPANDED DIAGNOSTIC CONSOLE */}
       {/* <div className="fixed bottom-4 left-4 p-3 bg-black/95 text-white rounded-lg z-[4000] text-xs font-mono max-w-sm overflow-y-auto max-h-48">
         <div className="font-bold text-yellow-300 mb-2">📊 DIAGNOSTIC CONSOLE</div>
