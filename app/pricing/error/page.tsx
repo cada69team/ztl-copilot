@@ -29,7 +29,7 @@ export default function PaymentError() {
   };
 
   const handleContactSupport = () => {
-    window.location.href = 'mailto:support@yourapp.com?subject=Payment Error';
+    window.location.href = 'mailto:clatida.apps@gmail.com?subject=Payment Error';
   };
 
   return (

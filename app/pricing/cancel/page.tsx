@@ -45,13 +45,13 @@ export default function PaymentCancel() {
         </div>
 
         <div className="space-y-3">
-          <button
+          {/* <button
             onClick={handleTryAgain}
             className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full justify-center"
           >
             <ArrowBackIcon />
             Try Again
-          </button>
+          </button> */}
 
           <button
             onClick={handleGoHome}

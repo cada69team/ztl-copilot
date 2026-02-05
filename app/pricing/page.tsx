@@ -12,29 +12,28 @@ export default function Pricing() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [emailVal,setEmail]=useState<string>('');
 
   const pricing = {
     basic: {
       name: 'Basic Plan',
       price: 'Free',
       features: [
-        '3 ZTL alerts per day',
-        'No GPS tracking',
+        '3 ZTL alerts',
+        'Basic ZTL boundaries view',
       ]
     },
     premium: {
       name: 'Premium Plan',
-      price: '€4.99',
+      price: '€4.99',    
       features: [
         'UNLIMITED ZTL alerts',
-        'Real-time GPS tracking',
-        'Sound alert (siren/silent)',
-        'Priority support',
+        'Enached ZTL boundaries view'
       ]
     },
   };
 
-  const handleCheckout = async (selectedTier: 'basic' | 'premium') => {
+  const handleCheckout = async (selectedTier: 'basic' | 'premium', _email:string) => {
     setIsProcessing(true);
     setError(null);
 
@@ -46,7 +45,7 @@ export default function Pricing() {
         },
         body: JSON.stringify({ 
           tier: selectedTier, 
-          email: 'test@email.com' 
+          email: _email,
         }),
       });
 
@@ -74,6 +73,11 @@ export default function Pricing() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const onInput = (event: Event) => {
+      const { value } = event.target as unknown as { value: string };
+      setEmail(value);
   };
 
   return (
@@ -142,9 +146,11 @@ export default function Pricing() {
                   </li>
                 ))}
               </ul>
+               
+              <input type="text" id="_email" placeholder='enter your email...'   onInput={onInput} ></input>
 
               <button
-                onClick={() => handleCheckout('premium')}
+                onClick={() => handleCheckout('premium', emailVal )}
                 disabled={isProcessing}
                 className={`w-full py-3 px-6 font-medium rounded-lg transition ${
                   isProcessing
@@ -164,36 +170,20 @@ export default function Pricing() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Free Plan</h3>
               <ul className="space-y-2 text-sm text-gray-700">
-                <li>• 3 ZTL alerts per day</li>
-                <li>• Basic map view</li>
-                <li>• No GPS tracking</li>
-                <li>• Ad-supported</li>
+                <li>• 3 ZTL alerts</li>
+                <li>• Basic ZTL boundaries view</li>
               </ul>
             </div>
             <div>
               <h3 className="text-lg font-semibold text-blue-900 mb-2">Premium</h3>
               <ul className="space-y-2 text-sm text-gray-700">
                 <li>• <span className="font-bold">UNLIMITED</span> ZTL alerts</li>
-                <li>• <span className="font-bold">Real-time</span> GPS tracking</li>
-                <li>• <span className="font-bold">Voice</span> alerts (siren/chime/silent)</li>
-                <li>• <span className="font-bold">Premium</span> map view</li>
-                <li>• <span className="font-bold">Priority</span> support</li>
-                <li>• <span className="font-bold">30-day</span> money back guarantee</li>
+                <li>• <span className="font-bold">Real-time</span> GPS tracking</li>  
+                <li>• <span className="font-bold">Premium</span> ZTL map view</li>
               </ul>
             </div>
           </div>
         </div>
-
-        <div className="mt-6 p-6 bg-gray-50 rounded-2xl">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">🛡️</span>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">30-Day Money-Back Guarantee</h3>
-              <p className="text-gray-700">Not satisfied? Get a full refund within 30 days, no questions asked.</p>
-            </div>
-          </div>
-        </div>
-
         <div className="mt-12 text-center text-gray-500 text-sm">
           <p>Secure payment powered by <span className="font-bold text-blue-600">Stripe</span></p>
           <p className="mt-2">
