@@ -37,10 +37,8 @@ export default function PaymentCancel() {
           </h3>
           <ul className="text-sm text-left text-orange-700 space-y-1">
             <li>✓ Unlimited ZTL alerts</li>
-            <li>✓ Real-time GPS tracking</li>
-            <li>✓ Sound alerts</li>
-            <li>✓ Priority support</li>
-            <li>✓ 30-day money-back guarantee</li>
+            <li>✓ Enanched ZTL maps</li>
+   
           </ul>
         </div>
 
