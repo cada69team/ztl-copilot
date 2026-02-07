@@ -43,6 +43,7 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
   const [siren, setSiren] = useState<HTMLAudioElement | null>(null);
   const alertCountRef = useRef(alertCount);
   const watcherIdRef = useRef<number | null>(null);
+  const hasInitialCenterRef = useRef(false);
 
   const lastAlertTypeRef = useRef<string | null>(null);
   const lastAlertTimeRef = useRef<number>(0);
@@ -84,6 +85,9 @@ function LocationMarker({ onAlert, alertSound, onNearestZone, onPositionUpdate, 
         }
         setPosition([latitude, longitude]);
         onPositionUpdate([latitude, longitude]);
+        
+        // Centra la mappa sulla posizione: sempre per seguire l'utente
+        map.setView([latitude, longitude], map.getZoom());
 
         const pt = turf.point([longitude, latitude]);
         let nearest: any = null;
@@ -342,6 +346,11 @@ function GoogleMapsTracker({
         const newPosition = { lat: latitude, lng: longitude };
         setPosition(newPosition);
         onPositionUpdate([latitude, longitude]);
+        
+        // Centra la mappa sulla nuova posizione
+        if (map) {
+          map.panTo(newPosition);
+        }
 
         const pt = turf.point([longitude, latitude]);
         let nearest: any = null;
@@ -539,6 +548,38 @@ export default function Map() {
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
+
+  const [center, setCenter] = useState<[number, number]>([45.479853, 9.169119]);
+  const [zoom, setZoom] = useState(13);
+  const [initialGoogleCenter, setInitialGoogleCenter] = useState<{ lat: number; lng: number }>({ lat: 45.4642, lng: 9.19 });
+  const [isInitialPositionLoaded, setIsInitialPositionLoaded] = useState(false);
+
+  // Ottieni la posizione GPS iniziale
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          console.log("📍 Posizione GPS iniziale ottenuta:", latitude, longitude);
+          setCenter([latitude, longitude]);
+          setInitialGoogleCenter({ lat: latitude, lng: longitude });
+          setIsInitialPositionLoaded(true);
+        },
+        (error) => {
+          console.error("⚠️ Errore nell'ottenere la posizione GPS:", error);
+          // Mantiene i valori di default se c'è un errore
+          setIsInitialPositionLoaded(true);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    } else {
+      setIsInitialPositionLoaded(true);
+    }
+  }, []);
 
   const handleAlertIncrement = useCallback(() => {
     setAlertCount((prev) => {
@@ -839,7 +880,18 @@ export default function Map() {
   const handlePositionUpdate = useCallback((position: [number, number] | null) => {
     console.log("📡 Map: User position updated:", position);
     setUserPosition(position);
-  }, []);
+    
+    // Aggiorna il centro della mappa con la nuova posizione
+    if (position) {
+      setCenter(position);
+      setInitialGoogleCenter({ lat: position[0], lng: position[1] });
+      
+      // Se è Google Maps, centra la mappa sulla nuova posizione
+      if (googleMapInstance) {
+        googleMapInstance.panTo({ lat: position[0], lng: position[1] });
+      }
+    }
+  }, [googleMapInstance]);
 
   useEffect(() => {
     return () => {
@@ -876,6 +928,12 @@ export default function Map() {
     localStorage.setItem('dailyAlertCount', alertCount.toString());
     localStorage.setItem('dailyResetDate', today);
   }, [alertCount]);
+
+  const handleCenterMap = () => {
+    setCenter([45.4642, 9.1900]);
+    setZoom(13);
+  };
+
 
   if (!ztlZones) {
     return (
@@ -942,8 +1000,9 @@ export default function Map() {
       {!isPremiumPlan ? (
         // Piano FREE: usa OpenStreetMap con Leaflet
         <MapContainer
-          center={[45.4642, 9.19]}
-          zoom={13}
+          //center={[45.4642, 9.19]}
+          center={center}
+          zoom={zoom}
           className="h-full w-full"
           style={{ height: "70vh", width: "100%", borderRadius: "25px" }}
           zoomControl={false}
@@ -991,8 +1050,8 @@ export default function Map() {
         // Piano PREMIUM: usa Google Maps
         <GoogleMap
           mapContainerStyle={{ height: "70vh", width: "100%", paddingLeft: "10px", borderRadius: "25px" }}
-          center={{ lat: 45.4642, lng: 9.19 }}
-          zoom={13}
+          center={initialGoogleCenter}
+          zoom={zoom}
           onLoad={(map) => {
             console.log("✅ Google Maps loaded");
             setGoogleMapInstance(map);
@@ -1001,7 +1060,7 @@ export default function Map() {
           options={{
             zoomControl: true,
             zoomControlOptions: {
-              position: window.google?.maps?.ControlPosition?.RIGHT_BOTTOM,
+              position: window.google?.maps?.ControlPosition?.LEFT_TOP,
             },
             mapTypeControl: false,
             streetViewControl: false,
